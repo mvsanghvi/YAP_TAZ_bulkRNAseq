@@ -12,3 +12,4 @@ To run STAR
 ```bash
 ./STAR --help
 ```
+On 64 GB Codespace, takes 40 mins to make the genome index file
