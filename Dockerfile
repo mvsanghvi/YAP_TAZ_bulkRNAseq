@@ -1,28 +1,34 @@
 FROM python:3
 
-# Get latest STAR source from releases
-RUN git clone https://github.com/alexdobin/STAR.git
+COPY requirements.txt .
 
-RUN apt-get update && \
-    apt-get install g++ && \
-    apt-get install make && \
-    apt-get install xxd
+RUN pip install -r requirements.txt
 
-# Compile STAR
-RUN cd STAR/source && \
-    make clean && \
-    make STAR
+RUN mkdir /bulkseq
 
-# Build Genome index.
-RUN cd STAR/source && \
-    mkdir -p data/genomes/h38/STAR/ && cd data/genomes/h38/STAR/ && \
-    wget ftp://ftp.ensembl.org/pub/release-99/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz && \
-    wget ftp://ftp.ensembl.org/pub/release-99/gtf/homo_sapiens/Homo_sapiens.GRCh38.99.gtf.gz && \
-    gunzip *.gz
+WORKDIR /bulkseq
 
-#  Make the genome index file. Code from https://github.com/erilu/bulk-rnaseq-analysis
-RUN ./STAR --runThreadN 64 --runMode genomeGenerate --genomeDir ./data/genomes/h38/STAR/ --genomeFastaFiles ./data/genomes/h38/STAR/Homo_sapiens.GRCh38.dna.primary_assembly.fa --sjdbGTFfile ./data/genomes/h38/STAR/Homo_sapiens.GRCh38.99.gtf
+#Install HISAT [HISAT2](https://daehwankimlab.github.io/hisat2/manual/)
+RUN wget https://cloud.biohpc.swmed.edu/index.php/s/oTtGWbWjaxsQ2Ho/download && \
+    unzip download && \
+    cp ./hisat2-2.2.1/* /usr/bin/
 
-WORKDIR /STAR/source
+# Download human GRCH38 genome index
+
+RUN wget https://genome-idx.s3.amazonaws.com/hisat/grch38_genome.tar.gz && \
+    gunzip grch38_genome.tar.gz && \
+    tar -xvf grch38_genome.tar
+
+# Install samtools: https://github.com/samtools/samtools/blob/develop/INSTALL
+
+RUN wget https://github.com/samtools/samtools/releases/download/1.21/samtools-1.21.tar.bz2
+
+
+RUN bunzip2 samtools-1.21.tar.bz2 && \
+    cd samtools-1.21 && \
+    ./configure && \
+    make && \
+    make install
+
 
 CMD ["/bin/bash"]
