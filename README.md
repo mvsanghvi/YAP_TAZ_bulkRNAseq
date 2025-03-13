@@ -5,7 +5,7 @@ Bulk RNA sequencing of WT, YAP KO, and YAP/TAZ KO H9 cells
 
 ```bash
 docker build -t yaptaz .
-docker run -it --name ytcontainer yaptaz
+docker run -it -e ACCOUNT_ID=${ACCOUNT_ID} -e AWS_ACCESS_KEY=${AWS_ACCESS_KEY} -e AWS_SECRET_KEY=${AWS_SECRET_KEY} --name ytcontainer yaptaz
 ```
 # For running mapping with STAR
 For running in Docker file
