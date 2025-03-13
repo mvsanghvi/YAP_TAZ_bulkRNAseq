@@ -11,3 +11,9 @@ do
     hisat2 -q --dta -p 8 -x grch38/genome -1 ./WT_P62_1.fq.gz -2 ./WT_P62_2.fq.gz  -S WT_P62.sam  -t
     hfile_bam=$"$i"_h.bam
     samtools sort -@ 8 -o hfile_bam hfile_sam
+
+    rm "$hfile_sam"
+
+    yt_folder= $"$i"_all
+    stringtie -e -B -p 8 -G grch38/genome ./$hfile_bam -o ./yt_all_gtf/$yt_folder/output_merge.gtf
+done
