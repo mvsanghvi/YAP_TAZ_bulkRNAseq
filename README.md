@@ -99,3 +99,15 @@ RUN wget https://ccb.jhu.edu/software/stringtie/dl/stringtie-3.0.0.Linux_x86_64.
 CMD ["/bin/bash"]
 
 
+
+RUN wget https://github.com/samtools/samtools/releases/download/1.21/samtools-1.21.tar.bz2
+
+
+RUN bunzip2 samtools-1.21.tar.bz2 && \
+   tar -xvf samtools-1.21.tar && \
+   cd samtools-1.21 && \
+   ./configure && \
+   make && \
+   make install
+
+
