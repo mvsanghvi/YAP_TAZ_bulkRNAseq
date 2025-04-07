@@ -51,7 +51,7 @@ count_tbl_low_rm <- count_tbl[gene_keep, ]
 
 #Create a metadata table with information about each sample:
 meta <- data.frame(SampleID = colnames(count_tbl),
-                   Cell_Line = c("Control", "YAP KO", "YAP+TAZ KO"))
+                   CellLine = c("Control", "Y2", "YT"))
 rownames(meta) <- meta$SampleID
 
 #Combine the count data and sample information into a DGEList object:
@@ -66,8 +66,8 @@ dge_v <- voom(dge, plot=TRUE)
 saveRDS(dge_v, "dge_v.rds")
 
 #Create PCA plot
-shape_column <- "Cell_Line"
-color_column <- "Cell_Line"
+shape_column <- "CellLine"
+color_column <- "CellLine"
 label <- TRUE
 label_size <- 4
 WT_Y2_YT2 <- "PCA_Plot.pdf"
@@ -87,3 +87,46 @@ pca_plot <- autoplot(pca_prep, label, shape = shape_column, data = meta_table, c
 
 ggsave(WT_Y2_YT2, device = "pdf", units = "cm", width = 16, height = 14)
 plot(pca_plot)
+
+#Differential Expression Analysis
+
+#Compare YAP KO to WT control
+comparison <- "Y2-Control"
+
+design <- model.matrix(~ 0 + dge_v$targets$CellLine)
+colnames(design) <- gsub("dge_v\\$targets\\$CellLine", "", colnames(design))
+
+contrast_matrix <- makeContrasts(
+  Y2_vs_Control = Y2 - Control,
+  YT_vs_Control = YT - Control,
+  YT_vs_Y2 = YT - Y2,
+  levels = design
+)
+
+v <- voom(dge_v, design)
+fit <- lmFit(v, design)
+fit2 <- contrasts.fit(fit, contrast_matrix)
+fit2 <- eBayes(fit2)
+
+deg_tbl <- topTable(fit_2, coef = colnames(contrast_matrix), n = Inf, p.value=1, lfc=0, sort.by = "p")
+fwrite(deg_tbl, "DEG_WT_Y2.tsv", sep = "\t", row.names = T)
+
+#Using DESeq2
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("DESeq2")
+
+library("DESeq2")
+library("tidyverse")
+
+#Create DESeq2 Object
+condition <- c(rep("Control", 1), rep("Y2", 1), rep("YT", 1))
+               
+my_colData <- as.data.frame(condition)
+rownames(my_colData) <- colnames(data)
+my_colData
+
+dds <- DESeqDataSetFromMatrix(countData = data,
+                              colData = my_colData,
+                              design = ~condition)               
