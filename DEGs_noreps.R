@@ -90,7 +90,7 @@ mymap <- pheatmap(log_counts_top_scaled,
                   fontsize_col = 5,
                   main = "Top 100 Most Variable Genes")
 
-# Optional: Save to PDF
+# Save to image
 ggsave("WT_Y2_YT2_rnaseq.png", plot=mymap)
 
 # save_heatmap_pdf <- function(filename, mat, annotation) {
@@ -106,3 +106,30 @@ ggsave("WT_Y2_YT2_rnaseq.png", plot=mymap)
 # }
 # 
 # save_heatmap_pdf("heatmap_top100.pdf", log_counts_top_scaled, annotation_col)
+
+#Export "100 most Variable Genes" Genes to CSV
+# After you've identified the top 100 most variable genes
+top_genes <- names(sort(gene_vars, decreasing = TRUE))[1:100]
+
+# Create a data frame with gene IDs and their variance
+top_genes_df <- data.frame(
+  Gene_ID = top_genes,
+  Variance = gene_vars[top_genes]
+)
+
+# If you've already mapped Ensembl IDs to gene symbols, add those too
+if(exists("gene_map")) {
+  top_genes_df$Gene_Symbol <- sapply(top_genes_df$Gene_ID, function(id) {
+    if(id %in% names(gene_map) && gene_map[id] != "") {
+      return(gene_map[id])
+    } else {
+      return(id)  # Keep original ID if no symbol available
+    }
+  })
+}
+
+# Add expression values for each sample
+top_genes_df <- cbind(top_genes_df, v$E[top_genes, ])
+
+# Export as CSV
+write.csv(top_genes_df, "top_100_variable_genes.csv", row.names = FALSE)
