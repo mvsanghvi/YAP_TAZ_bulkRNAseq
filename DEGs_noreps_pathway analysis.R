@@ -1,6 +1,7 @@
 #Set Up environment 
 if (!require("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
+BiocManager::install("GO.db")
 BiocManager::install("GenomeInfoDbData")
 BiocManager::install(c("sva", "edgeR", "limma", "Biobase", "biomaRt", 
                        "clusterProfiler", "EnhancedVolcano", "org.Hs.eg.db",
@@ -241,7 +242,7 @@ ann_colors <- list(
 )
 
 # Create heatmap
-pdf("Top_DE_genes_heatmap.pdf", width = 10, height = 12)
+png("Top_DE_genes_heatmap.png", width = 10, height = 12, units = "in", res = 300)
 pheatmap(
   de_expr_z,
   annotation_col = sample_anno,
@@ -267,7 +268,7 @@ fc_matrix <- fc_matrix[all_top_genes, ]
 rownames(fc_matrix) <- row_labels
 
 # Create fold change heatmap
-png("Fold_change_heatmap.pdf", width = 8, height = 12)
+png("Fold_change_heatmap.png", width = 8, height = 12, units = "in", res = 300)
 pheatmap(
   fc_matrix,
   cluster_cols = FALSE,
@@ -282,7 +283,7 @@ dev.off()
 
 # 3. Sample correlation heatmap
 cor_matrix <- cor(norm_expr)
-png("Sample_correlation_heatmap.pdf", width = 7, height = 6)
+png("Sample_correlation_heatmap.png", width = 10, height = 12, units = "in", res = 300)
 pheatmap(
   cor_matrix,
   annotation_col = sample_anno,
