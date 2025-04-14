@@ -298,83 +298,219 @@ pheatmap(
 dev.off()
 
 # 4. Expression pattern heatmap for specific gene sets (example: cell cycle genes)
-# You can define interesting gene sets based on prior knowledge
-# For example, cell cycle genes (replace with actual gene IDs)
-# This is just an example - you would need to provide actual gene IDs
-cell_cycle_genes <- c("ENSG00000005339", "ENSG00000112576", "ENSG00000101224")  # Example gene IDs
-cell_cycle_expr <- norm_expr[rownames(norm_expr) %in% cell_cycle_genes, ]
+# Pathway analysis without prior knowledge of genes in pathways
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(enrichplot)
 
-if (nrow(cell_cycle_expr) > 0) {
-  # Z-score normalize
-  cell_cycle_z <- t(scale(t(cell_cycle_expr)))
+# Convert all gene IDs to Entrez IDs for pathway analysis
+ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+gene_map <- getBM(
+  attributes = c("ensembl_gene_id", "entrezgene_id", "external_gene_name"),
+  filters = "ensembl_gene_id",
+  values = rownames(norm_expr),
+  mart = ensembl
+)
+
+# Remove entries without Entrez IDs
+gene_map <- gene_map[!is.na(gene_map$entrezgene_id),]
+
+# Function to create ranked gene lists for pathway analysis
+prepare_gene_list <- function(fc_values, id_map, lfc_threshold = 1) {
+  # Sort genes by fold change
+  gene_ids <- names(fc_values)
+  fc_ordered <- fc_values[order(fc_values, decreasing = TRUE)]
   
-  # Create heatmap
-  png("Cell_cycle_genes_heatmap.pdf", width = 8, height = 6)
-  pheatmap(
-    cell_cycle_z,
-    annotation_col = sample_anno,
-    annotation_colors = ann_colors,
-    clustering_distance_rows = "correlation",
-    clustering_distance_cols = "correlation",
-    main = "Cell Cycle Genes Expression"
+  # Map to Entrez IDs, keeping logFC values
+  entrez_map <- id_map[match(names(fc_ordered), id_map$ensembl_gene_id),]
+  ranked_list <- fc_ordered[!is.na(entrez_map$entrezgene_id)]
+  names(ranked_list) <- entrez_map$entrezgene_id[!is.na(entrez_map$entrezgene_id)]
+  
+  # Extract significant genes based on fold change threshold
+  sig_up <- names(ranked_list)[ranked_list >= lfc_threshold]
+  sig_down <- names(ranked_list)[ranked_list <= -lfc_threshold]
+  
+  return(list(
+    ranked_list = ranked_list,
+    sig_up = sig_up,
+    sig_down = sig_down
+  ))
+}
+
+# Prepare gene lists for each comparison
+Y2vsControl_genes <- prepare_gene_list(log2FC_Y2vsControl, gene_map)
+YTvsControl_genes <- prepare_gene_list(log2FC_YTvsControl, gene_map)
+Y2vsYT_genes <- prepare_gene_list(log2FC_Y2vsYT, gene_map)
+
+# 1. GO Enrichment Analysis
+run_go_analysis <- function(gene_list, ont = "BP", title = "") {
+  # Run for up-regulated genes
+  ego_up <- enrichGO(
+    gene = gene_list$sig_up,
+    OrgDb = org.Hs.eg.db,
+    ont = ont,
+    pAdjustMethod = "BH",
+    pvalueCutoff = 0.05,
+    qvalueCutoff = 0.2,
+    readable = TRUE
   )
-  dev.off()
+  
+  # Run for down-regulated genes
+  ego_down <- enrichGO(
+    gene = gene_list$sig_down,
+    OrgDb = org.Hs.eg.db,
+    ont = ont,
+    pAdjustMethod = "BH",
+    pvalueCutoff = 0.05,
+    qvalueCutoff = 0.2,
+    readable = TRUE
+  )
+  
+  # Save results to CSV
+  if (nrow(as.data.frame(ego_up)) > 0) {
+    write.csv(as.data.frame(ego_up), paste0(title, "_", ont, "_UP.csv"))
+    
+    # Create and save dotplot
+    png(paste0(title, "_", ont, "_UP_dotplot.png"), width = 10, height = 8, units = "in", res = 300)
+    print(dotplot(ego_up, showCategory = 15, title = paste0(title, " ", ont, " Up-regulated")))
+    dev.off()
+  }
+  
+  if (nrow(as.data.frame(ego_down)) > 0) {
+    write.csv(as.data.frame(ego_down), paste0(title, "_", ont, "_DOWN.csv"))
+    
+    # Create and save dotplot
+    png(paste0(title, "_", ont, "_DOWN_dotplot.png"), width = 10, height = 8, units = "in", res = 300)
+    print(dotplot(ego_down, showCategory = 15, title = paste0(title, " ", ont, " Down-regulated")))
+    dev.off()
+  }
+  
+  return(list(up = ego_up, down = ego_down))
 }
 
-# 5. Create a heatmap showing the expression of genes with highest fold changes in each condition
-# Function to get genes with highest absolute fold change in each comparison
-get_condition_specific_genes <- function(fc_values, n = 15) {
-  names(fc_values)[order(abs(fc_values), decreasing = TRUE)][1:n]
+# Run GO BP analysis for each comparison
+Y2vsControl_GO <- run_go_analysis(Y2vsControl_genes, ont = "BP", title = "Y2vsControl")
+YTvsControl_GO <- run_go_analysis(YTvsControl_genes, ont = "BP", title = "YTvsControl")
+Y2vsYT_GO <- run_go_analysis(Y2vsYT_genes, ont = "BP", title = "Y2vsYT")
+
+# 2. KEGG Pathway Analysis
+run_kegg_analysis <- function(gene_list, title = "") {
+  # Run for up-regulated genes
+  kk_up <- enrichKEGG(
+    gene = gene_list$sig_up,
+    organism = "hsa",
+    pvalueCutoff = 0.05
+  )
+  
+  # Run for down-regulated genes
+  kk_down <- enrichKEGG(
+    gene = gene_list$sig_down,
+    organism = "hsa",
+    pvalueCutoff = 0.05
+  )
+  
+  # Save results to CSV
+  if (nrow(as.data.frame(kk_up)) > 0) {
+    write.csv(as.data.frame(kk_up), paste0(title, "_KEGG_UP.csv"))
+    
+    # Create and save dotplot
+    png(paste0(title, "_KEGG_UP_dotplot.png"), width = 10, height = 8, units = "in", res = 300)
+    print(dotplot(kk_up, showCategory = 15, title = paste0(title, " KEGG Up-regulated")))
+    dev.off()
+  }
+  
+  if (nrow(as.data.frame(kk_down)) > 0) {
+    write.csv(as.data.frame(kk_down), paste0(title, "_KEGG_DOWN.csv"))
+    
+    # Create and save dotplot
+    png(paste0(title, "_KEGG_DOWN_dotplot.png"), width = 10, height = 8, units = "in", res = 300)
+    print(dotplot(kk_down, showCategory = 15, title = paste0(title, " KEGG Down-regulated")))
+    dev.off()
+  }
+  
+  return(list(up = kk_up, down = kk_down))
 }
 
-# Get top condition-specific genes 
-Y2_specific <- get_condition_specific_genes(log2FC_Y2vsControl)
-YT_specific <- get_condition_specific_genes(log2FC_YTvsControl)
-Y2vsYT_specific <- get_condition_specific_genes(log2FC_Y2vsYT)
+# Run KEGG analysis for each comparison
+Y2vsControl_KEGG <- run_kegg_analysis(Y2vsControl_genes, title = "Y2vsControl")
+YTvsControl_KEGG <- run_kegg_analysis(YTvsControl_genes, title = "YTvsControl")
+Y2vsYT_KEGG <- run_kegg_analysis(Y2vsYT_genes, title = "Y2vsYT")
 
-# Combine lists (keeping them unique)
-condition_specific_genes <- unique(c(Y2_specific, YT_specific, Y2vsYT_specific))
+# 3. GSEA Analysis (Gene Set Enrichment Analysis)
+run_gsea <- function(gene_list, title = "") {
+  gsea_result <- gseGO(
+    geneList = gene_list$ranked_list,
+    ont = "BP",
+    keyType = "ENTREZID",
+    minGSSize = 10,
+    maxGSSize = 500,
+    pvalueCutoff = 0.05,
+    verbose = FALSE,
+    OrgDb = org.Hs.eg.db,
+    pAdjustMethod = "BH"
+  )
+  
+  # Save results to CSV
+  if (nrow(as.data.frame(gsea_result)) > 0) {
+    write.csv(as.data.frame(gsea_result), paste0(title, "_GSEA.csv"))
+    
+    # Create and save GSEA plots for top 5 pathways
+    top_pathways <- head(gsea_result@result$ID, 5)
+    for (i in seq_along(top_pathways)) {
+      png(paste0(title, "_GSEA_", i, ".png"), width = 10, height = 6, units = "in", res = 300)
+      print(gseaplot2(gsea_result, geneSetID = i, title = paste0(title, " GSEA")))
+      dev.off()
+    }
+  }
+  
+  return(gsea_result)
+}
 
-# Extract expression
-condition_expr <- norm_expr[condition_specific_genes, ]
+# Run GSEA for each comparison
+Y2vsControl_GSEA <- run_gsea(Y2vsControl_genes, title = "Y2vsControl")
+YTvsControl_GSEA <- run_gsea(YTvsControl_genes, title = "YTvsControl")
+Y2vsYT_GSEA <- run_gsea(Y2vsYT_genes, title = "Y2vsYT")
 
-# Add gene symbols to row names as done earlier
-row_labels <- rownames(condition_expr)
-for (i in 1:length(row_labels)) {
-  gene_id <- row_labels[i]
-  if (gene_id %in% names(gene_symbols)) {
-    row_labels[i] <- paste0(gene_symbols[gene_id], " (", gene_id, ")")
+# 4. Create pathway-specific heatmaps for the top pathways from each analysis
+create_pathway_heatmap <- function(enrichment_result, gene_map, expr_data, sample_anno, title) {
+  if (nrow(as.data.frame(enrichment_result)) > 0) {
+    # Get the top pathway
+    top_pathway <- enrichment_result@result$ID[1]
+    pathway_name <- enrichment_result@result$Description[1]
+    
+    # Get genes in the pathway
+    pathway_genes <- enrichment_result@result$geneID[1]
+    pathway_genes <- unlist(strsplit(pathway_genes, "/"))
+    
+    # Map back to Ensembl IDs
+    ensembl_ids <- gene_map$ensembl_gene_id[gene_map$entrezgene_id %in% pathway_genes]
+    
+    # Get gene symbols for labeling
+    gene_names <- gene_map$external_gene_name[gene_map$ensembl_gene_id %in% ensembl_ids]
+    gene_labels <- paste0(gene_names, " (", ensembl_ids, ")")
+    names(gene_labels) <- ensembl_ids
+    
+    # Extract expression data for these genes
+    pathway_expr <- expr_data[ensembl_ids, ]
+    rownames(pathway_expr) <- gene_labels
+    
+    # Z-score normalize
+    pathway_expr_z <- t(scale(t(pathway_expr)))
+    
+    # Create heatmap
+    png(paste0(title, "_top_pathway_heatmap.png"), width = 10, height = 10, units = "in", res = 300)
+    pheatmap(
+      pathway_expr_z,
+      annotation_col = sample_anno,
+      annotation_colors = ann_colors,
+      main = paste0(title, " - Top Pathway: ", pathway_name),
+      fontsize_row = 8
+    )
+    dev.off()
   }
 }
-rownames(condition_expr) <- row_labels
 
-# Z-score normalize
-condition_expr_z <- t(scale(t(condition_expr)))
-
-# Create a column annotation that shows which genes are specific to which comparison
-gene_specificity <- data.frame(
-  Y2vsControl = rownames(condition_expr) %in% Y2_specific,
-  YTvsControl = rownames(condition_expr) %in% YT_specific,
-  Y2vsYT = rownames(condition_expr) %in% Y2vsYT_specific
-)
-rownames(gene_specificity) <- rownames(condition_expr)
-
-# Create heatmap
-png("Condition_specific_genes_heatmap.pdf", width = 10, height = 12)
-pheatmap(
-  condition_expr_z,
-  annotation_col = sample_anno,
-  annotation_row = gene_specificity,
-  annotation_colors = list(
-    CellLine = ann_colors$CellLine,
-    Y2vsControl = c("TRUE" = "darkred", "FALSE" = "white"),
-    YTvsControl = c("TRUE" = "darkgreen", "FALSE" = "white"),
-    Y2vsYT = c("TRUE" = "darkblue", "FALSE" = "white")
-  ),
-  clustering_distance_rows = "correlation",
-  clustering_distance_cols = "correlation",
-  show_rownames = TRUE,
-  main = "Condition-Specific Genes",
-  fontsize_row = 8
-)
-dev.off()
+# Create pathway heatmaps for top GO pathways
+create_pathway_heatmap(Y2vsControl_GO$up, gene_map, norm_expr, sample_anno, "Y2vsControl_GO_UP")
+create_pathway_heatmap(YTvsControl_GO$up, gene_map, norm_expr, sample_anno, "YTvsControl_GO_UP")
+create_pathway_heatmap(Y2vsYT_GO$up, gene_map, norm_expr, sample_anno, "Y2vsYT_GO_UP")
