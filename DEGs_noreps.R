@@ -62,6 +62,7 @@ colnames(design) <- levels(factor(dge$samples$CellLine))
 # 6. voom Transformation (No DE)
 v <- voom(dge, design, plot = TRUE)
 v$targets <- meta  # Attach metadata for easy access
+fwrite(v$targets, "Voom_YT.tsv", sep = "\t", row.names = T)
 
 # 7. Heatmap of Top Variable Genes
 # Calculate variance of each gene
