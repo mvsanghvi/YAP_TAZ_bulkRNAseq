@@ -12,7 +12,7 @@ library(DOSE)
 library(enrichplot)
 
 #1. Input Data Format: Import DEG table
-deg <- fread("")
+deg <- fread("Voom_YT.tsv")
 
 p_threshold <- 0.05
 fc_threshold <- 2
