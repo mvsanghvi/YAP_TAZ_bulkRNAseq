@@ -59,14 +59,22 @@ dge <- calcNormFactors(dge)
 design <- model.matrix(~ 0 + dge$samples$CellLine)
 colnames(design) <- levels(factor(dge$samples$CellLine))
 
-# 6. voom Transformation (No DE)
+# 6. voom Transformation (No DEGs)
 v <- voom(dge, design, plot = TRUE)
 v$targets <- meta  # Attach metadata for easy access
 fwrite(v$targets, "Voom_YT.tsv", sep = "\t", row.names = T)
 
+# Export the voom-transformed expression values
+voom_expr <- as.data.frame(v$E)
+voom_expr$gene_id <- rownames(voom_expr)  # Add gene IDs as a column
+fwrite(voom_expr, "voom_expression_data.tsv", sep="\t", row.names=FALSE)
+
 # 7. Heatmap of Top Variable Genes
 # Calculate variance of each gene
 gene_vars <- apply(v$E, 1, var)
+gene_var_df <- data.frame(gene_id = names(gene_vars), variance = gene_vars)
+gene_var_df <- gene_var_df[order(-gene_var_df$variance),]  # Sort by variance
+fwrite(gene_var_df, "gene_variance.tsv", sep="\t", row.names=FALSE)
 
 # Select top 100 most variable genes
 top_genes <- names(sort(gene_vars, decreasing = TRUE))[1:100]
