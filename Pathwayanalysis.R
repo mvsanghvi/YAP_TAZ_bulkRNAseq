@@ -22,6 +22,7 @@ id_mapping <- bitr(names(gene_list),
                    fromType = "ENSEMBL", 
                    toType = "ENTREZID", 
                    OrgDb = org.Hs.eg.db)
+  #Getting Warning of failing to map
 
 # Map the ranked values to Entrez IDs
 entrez_list <- gene_list[id_mapping$ENSEMBL]
@@ -72,7 +73,7 @@ if(length(Y2_col) > 0 && length(Control_col) > 0) {
   
   # Map the ranked values to Entrez IDs
   fc_entrez_list <- fc_list[fc_id_mapping$ENSEMBL]
-  names(fc_entrez_list) <- fc_id_mapping$ENTREZID
+  # names(fc_entrez_list) <- fc_id_mapping$ENTREZID
   
   # Run GSEA
   gsea_fc_result <- gseGO(geneList = fc_entrez_list,
