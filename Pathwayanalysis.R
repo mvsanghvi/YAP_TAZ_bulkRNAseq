@@ -17,6 +17,8 @@ gene_list <- gene_var_df$variance
 names(gene_list) <- gene_var_df$gene_id
 gene_list <- sort(gene_list, decreasing = TRUE)
 
+head(names(gene_list))
+
 # Convert Ensembl IDs to Entrez IDs for pathway analysis
 id_mapping <- bitr(names(gene_list), 
                    fromType = "ENSEMBL", 

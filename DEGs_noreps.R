@@ -6,8 +6,7 @@ if (!require("BiocManager", quietly = TRUE))
 BiocManager::install("GenomeInfoDbData")
 
 BiocManager::install(c("sva", "edgeR", "limma", "Biobase", "biomaRt", 
-                       "clusterProfiler", "EnhancedVolcano", "org.Hs.eg.db", 
-                       "org.Mm.eg.db", "org.Rn.eg.db"))
+                       "clusterProfiler", "EnhancedVolcano", "org.Hs.eg.db"))
 
 install.packages(c("data.table", "readxl", "stringr", "ggplot2", "ggrepel", 
                    "ggfortify", "ggprism", "pheatmap", "VennDiagram", 
