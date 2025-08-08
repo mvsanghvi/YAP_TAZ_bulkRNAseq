@@ -1,0 +1,7 @@
+Sample	Total	Assigned	Unassigned_Unmapped	Unassigned_Read_Type	Unassigned_Singleton	Unassigned_MappingQuality	Unassigned_Chimera	Unassigned_FragmentLength	Unassigned_Duplicate	Unassigned_MultiMapping	Unassigned_Secondary	Unassigned_NonSplit	Unassigned_NoFeatures	Unassigned_Overlapping_Length	Unassigned_Ambiguity	percent_assigned
+./data/aligned/WT-P40-1/Aligned.sortedByCoord.out.bam	32423877	28067735	238628	0	0	0	0	0	0	2008988	0	0	905272	0	1203254	86.56501811920889
+./data/aligned/WT-P40-2/Aligned.sortedByCoord.out.bam	30105677	25977256	298804	0	0	0	0	0	0	1957858	0	0	719515	0	1152244	86.2869019686885
+./data/aligned/Y2-P37-10-1/Aligned.sortedByCoord.out.bam	60272100	49043772	1451496	0	0	0	0	0	0	5434503	0	0	1876189	0	2466140	81.37060430945662
+./data/aligned/Y2-P37-10-2/Aligned.sortedByCoord.out.bam	28749650	24228937	184180	0	0	0	0	0	0	2581278	0	0	646076	0	1109179	84.27558944195842
+./data/aligned/YT-P37-7-17-1/Aligned.sortedByCoord.out.bam	73727924	61716725	1480182	0	0	0	0	0	0	5606491	0	0	2108842	0	2815684	83.70875192416919
+./data/aligned/YT-P37-7-17-2/Aligned.sortedByCoord.out.bam	49746346	40896062	706461	0	0	0	0	0	0	4244673	0	0	2169880	0	1729270	82.20917773538584

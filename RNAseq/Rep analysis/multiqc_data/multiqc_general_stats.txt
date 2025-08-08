@@ -1,0 +1,7 @@
+Sample	featurecounts-Assigned	featurecounts-percent_assigned
+./data/aligned/WT-P40-1/Aligned.sortedByCoord.out.bam	28.067735	86.56501811920889
+./data/aligned/WT-P40-2/Aligned.sortedByCoord.out.bam	25.977256	86.2869019686885
+./data/aligned/Y2-P37-10-1/Aligned.sortedByCoord.out.bam	49.043772	81.37060430945662
+./data/aligned/Y2-P37-10-2/Aligned.sortedByCoord.out.bam	24.228937	84.27558944195842
+./data/aligned/YT-P37-7-17-1/Aligned.sortedByCoord.out.bam	61.716725	83.70875192416919
+./data/aligned/YT-P37-7-17-2/Aligned.sortedByCoord.out.bam	40.896062	82.20917773538584

@@ -1,0 +1,7 @@
+Module	Section	Sample Name	Source
+featureCounts	all_sections	./data/aligned/WT-P40-2/Aligned.sortedByCoord.out.bam	/bulkseq/data/aligned/WT-P40-2/featureCounts_exon.txt.summary
+featureCounts	all_sections	./data/aligned/YT-P37-7-17-2/Aligned.sortedByCoord.out.bam	/bulkseq/data/aligned/YT-P37-7-17-2/featureCounts_exon.txt.summary
+featureCounts	all_sections	./data/aligned/WT-P40-1/Aligned.sortedByCoord.out.bam	/bulkseq/data/aligned/WT-P40-1/featureCounts_exon.txt.summary
+featureCounts	all_sections	./data/aligned/Y2-P37-10-2/Aligned.sortedByCoord.out.bam	/bulkseq/data/aligned/Y2-P37-10-2/featureCounts_exon.txt.summary
+featureCounts	all_sections	./data/aligned/Y2-P37-10-1/Aligned.sortedByCoord.out.bam	/bulkseq/data/aligned/Y2-P37-10-1/featureCounts_exon.txt.summary
+featureCounts	all_sections	./data/aligned/YT-P37-7-17-1/Aligned.sortedByCoord.out.bam	/bulkseq/data/aligned/YT-P37-7-17-1/featureCounts_exon.txt.summary

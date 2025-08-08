@@ -1,0 +1,7 @@
+Sample	Assigned	Unassigned: Unmapped	Unassigned: Multi Mapping	Unassigned: No Features	Unassigned: Ambiguity
+./data/aligned/WT-P40-1/Aligned.sortedByCoord.out.bam	28067735.0	238628.0	2008988.0	905272.0	1203254.0
+./data/aligned/WT-P40-2/Aligned.sortedByCoord.out.bam	25977256.0	298804.0	1957858.0	719515.0	1152244.0
+./data/aligned/Y2-P37-10-1/Aligned.sortedByCoord.out.bam	49043772.0	1451496.0	5434503.0	1876189.0	2466140.0
+./data/aligned/Y2-P37-10-2/Aligned.sortedByCoord.out.bam	24228937.0	184180.0	2581278.0	646076.0	1109179.0
+./data/aligned/YT-P37-7-17-1/Aligned.sortedByCoord.out.bam	61716725.0	1480182.0	5606491.0	2108842.0	2815684.0
+./data/aligned/YT-P37-7-17-2/Aligned.sortedByCoord.out.bam	40896062.0	706461.0	4244673.0	2169880.0	1729270.0
