@@ -35,3 +35,7 @@ fwrite(counts_raw, "counts_raw.tsv", sep = "\t")
 
 #Reading raw count data
 count_tbl <- fread("counts_raw.tsv", data.table = F)
+
+#Adding Row Names to the Count Table
+rownames(count_tbl) <- count_tbl[[1]]
+count_tbl <- count_tbl[, -1]
