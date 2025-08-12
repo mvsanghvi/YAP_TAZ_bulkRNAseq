@@ -41,3 +41,9 @@ count_tbl <- fread("counts_raw.tsv", data.table = F)
 #Adding Row Names to the Count Table
 rownames(count_tbl) <- count_tbl[[1]]
 count_tbl <- count_tbl[, -1]
+
+##FILTERING
+#Remove genes with little to no expression
+perc_keep <- 0.8
+gene_keep <- rowSums(count_tbl > 0) >= ceiling(perc_keep * ncol(count_tbl))
+count_tbl_low_rm <- count_tbl[gene_keep, ]
