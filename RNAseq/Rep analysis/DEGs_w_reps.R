@@ -47,3 +47,8 @@ count_tbl <- count_tbl[, -1]
 perc_keep <- 0.8
 gene_keep <- rowSums(count_tbl > 0) >= ceiling(perc_keep * ncol(count_tbl))
 count_tbl_low_rm <- count_tbl[gene_keep, ]
+
+#Creating Meta Data table with info about each sample
+meta <- data.frame(SampleID = colnames(count_tbl),
+                   Treatment = c("KRAS_SPIB", "KRAS_SPIB", "KRAS", "KRAS"))
+rownames(meta) <- meta$SampleID
