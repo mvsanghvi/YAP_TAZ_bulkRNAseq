@@ -50,5 +50,11 @@ count_tbl_low_rm <- count_tbl[gene_keep, ]
 
 #Creating Meta Data table with info about each sample
 meta <- data.frame(SampleID = colnames(count_tbl),
-                   Treatment = c("KRAS_SPIB", "KRAS_SPIB", "KRAS", "KRAS"))
+                   CellType <- c(rep("WT", 2), rep("YAPKO", 2), rep("YAP_TAZKO", 2)))
 rownames(meta) <- meta$SampleID
+#Combine count data and sample info into object
+dge <- DGEList(counts=count_tbl_low_rm, samples = meta)
+#Normalize for difficulties between samples
+dge <- calcNormFactors(dge, method = "TMM")
+dge_v <- voom(dge, plot=TRUE)
+
