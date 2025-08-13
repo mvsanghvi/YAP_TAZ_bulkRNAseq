@@ -58,3 +58,28 @@ dge <- DGEList(counts=count_tbl_low_rm, samples = meta)
 dge <- calcNormFactors(dge, method = "TMM")
 dge_v <- voom(dge, plot=TRUE)
 
+##VISULATION
+# save the dge_v object for later use
+saveRDS(dge_v, "dge_v.rds")
+
+#Create PCA Plot
+shape_column <- "CellType"
+color_column <- "CellType"
+label <- TRUE
+label_size <- 4
+#plot_save_name <- "PCA_Plot.jpeg"
+
+meta_table <- dge_v$targets
+count_table_t <- as.data.frame(t(dge_v$E))
+pca_prep <- prcomp(count_table_t, scale. = TRUE)
+
+pca_plot <- autoplot(pca_prep, label, shape = shape_column, data = meta_table, colour = color_column) +
+  geom_text_repel(aes(label = rownames(meta_table)), size = label_size) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.minor.y=element_blank(),
+        panel.grid.major.y=element_blank())
+
+ggsave(plot_save_name, device = "pdf", units = "cm", width = 16, height = 14)
