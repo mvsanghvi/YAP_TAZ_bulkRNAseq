@@ -50,7 +50,7 @@ count_tbl_low_rm <- count_tbl[gene_keep, ]
 
 #Creating Meta Data table with info about each sample
 meta <- data.frame(SampleID = colnames(count_tbl),
-                   CellType <- c(rep("WT", 2), rep("YAPKO", 2), rep("YAP_TAZKO", 2)))
+                   CellType = c("WT", "WT", "YAPKO", "YAPKO", "YAP_TAZKO", "YAP_TAZKO"))
 rownames(meta) <- meta$SampleID
 #Combine count data and sample info into object
 dge <- DGEList(counts=count_tbl_low_rm, samples = meta)
@@ -62,24 +62,51 @@ dge_v <- voom(dge, plot=TRUE)
 # save the dge_v object for later use
 saveRDS(dge_v, "dge_v.rds")
 
-#Create PCA Plot
-shape_column <- "CellType"
-color_column <- "CellType"
-label <- TRUE
-label_size <- 4
-#plot_save_name <- "PCA_Plot.jpeg"
+# #Create PCA Plot
+# shape_column <- "CellType"
+# color_column <- "CellType"
+# label <- TRUE
+# label_size <- 4
+# plot_save_name <- "PCA_Plot.pdf"
+# 
+# meta_table <- dge_v$targets
+# count_table_t <- as.data.frame(t(dge_v$E))
+# pca_prep <- prcomp(count_table_t, scale. = TRUE)
+# 
+# pca_plot <- autoplot(pca_prep, label, shape = shape_column, data = meta_table, colour = color_column) +
+#   geom_text_repel(aes(label = rownames(meta_table)), size = label_size) +
+#   theme(panel.grid.major = element_blank(),
+#         panel.grid.minor = element_blank(),
+#         panel.background = element_blank(),
+#         axis.line = element_line(colour = "black"),
+#         panel.grid.minor.y=element_blank(),
+#         panel.grid.major.y=element_blank())
+# 
+# ggsave(plot_save_name, device = "pdf", units = "cm", width = 16, height = 14)
 
-meta_table <- dge_v$targets
-count_table_t <- as.data.frame(t(dge_v$E))
-pca_prep <- prcomp(count_table_t, scale. = TRUE)
+comparison <- "WT_YAP_TAZKO"
 
-pca_plot <- autoplot(pca_prep, label, shape = shape_column, data = meta_table, colour = color_column) +
-  geom_text_repel(aes(label = rownames(meta_table)), size = label_size) +
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.background = element_blank(),
-        axis.line = element_line(colour = "black"),
-        panel.grid.minor.y=element_blank(),
-        panel.grid.major.y=element_blank())
+design <- model.matrix(~ 0 + dge_v$targets[["CellType"]])
+colnames(design) <- gsub(".*]]", "", colnames(design))
 
-ggsave(plot_save_name, device = "pdf", units = "cm", width = 16, height = 14)
+contrast_matrix <- makeContrasts(contrasts = comparison, levels = design)
+
+fit <- lmFit(dge_v, design)
+fit_2 <- contrasts.fit(fit, contrast_matrix)
+fit_2 <- eBayes(fit_2)
+
+deg_tbl <- topTable(fit_2, coef = colnames(contrast_matrix), n = Inf, p.value=1, lfc=0, sort.by = "p")
+fwrite(deg_tbl, "DEG_P1_lfc0.tsv", sep = "\t", row.names = T)
+
+BiocManager::install(c("clusterProfiler", "org.Hs.eg.db", "pathview", "enrichplot", "DOSE"))
+install.packages(c("data.table", "ggplot2"))
+library(data.table)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(ggplot2)
+library(DOSE)
+library(enrichplot)
+deg <- fread("DEG_P1_lfc0.tsv")
+
+p_threshold <- 0.05
+fc_threshold <- 2
