@@ -50,7 +50,7 @@ count_tbl_low_rm <- count_tbl[gene_keep, ]
 
 #Creating Meta Data table with info about each sample
 meta <- data.frame(SampleID = colnames(count_tbl),
-                   CellType = c("WT", "WT", "YAPKO", "YAPKO", "YAP_TAZKO", "YAP_TAZKO"))
+                   CellType = c("WT", "WT", "YAPKO", "YAPKO", "YAPTAZKO", "YAPTAZKO"))
 rownames(meta) <- meta$SampleID
 #Combine count data and sample info into object
 dge <- DGEList(counts=count_tbl_low_rm, samples = meta)
@@ -62,29 +62,30 @@ dge_v <- voom(dge, plot=TRUE)
 # save the dge_v object for later use
 saveRDS(dge_v, "dge_v.rds")
 
-# #Create PCA Plot
-# shape_column <- "CellType"
-# color_column <- "CellType"
-# label <- TRUE
-# label_size <- 4
-# plot_save_name <- "PCA_Plot.pdf"
-# 
-# meta_table <- dge_v$targets
-# count_table_t <- as.data.frame(t(dge_v$E))
-# pca_prep <- prcomp(count_table_t, scale. = TRUE)
-# 
-# pca_plot <- autoplot(pca_prep, label, shape = shape_column, data = meta_table, colour = color_column) +
-#   geom_text_repel(aes(label = rownames(meta_table)), size = label_size) +
-#   theme(panel.grid.major = element_blank(),
-#         panel.grid.minor = element_blank(),
-#         panel.background = element_blank(),
-#         axis.line = element_line(colour = "black"),
-#         panel.grid.minor.y=element_blank(),
-#         panel.grid.major.y=element_blank())
-# 
-# ggsave(plot_save_name, device = "pdf", units = "cm", width = 16, height = 14)
+#Create PCA Plot
+shape_column <- "CellType"
+color_column <- "CellType"
+label <- TRUE
+label_size <- 4
+plot_save_name <- "PCA_Plot.jpg"
 
-comparison <- "WT_YAP_TAZKO"
+meta_table <- dge_v$targets
+count_table_t <- as.data.frame(t(dge_v$E))
+pca_prep <- prcomp(count_table_t, scale. = TRUE)
+
+pca_plot <- autoplot(pca_prep, label, shape = shape_column, data = meta_table, colour = color_column) +
+  geom_text_repel(aes(label = rownames(meta_table)), size = label_size) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.grid.minor.y=element_blank(),
+        panel.grid.major.y=element_blank())
+
+ggsave(plot_save_name, device = "pdf", units = "cm", width = 16, height = 14)
+
+##Differential Expression Analysis
+comparison <- "WT_YAPKO_YAPTAZKO"
 
 design <- model.matrix(~ 0 + dge_v$targets[["CellType"]])
 colnames(design) <- gsub(".*]]", "", colnames(design))
