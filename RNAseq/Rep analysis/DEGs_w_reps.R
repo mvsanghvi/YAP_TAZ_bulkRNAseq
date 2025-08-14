@@ -2,8 +2,7 @@ if (!require("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
 
 BiocManager::install(c("sva", "edgeR", "limma", "Biobase", "biomaRt", 
-                       "clusterProfiler", "EnhancedVolcano", "org.Hs.eg.db", 
-                       "org.Mm.eg.db", "org.Rn.eg.db"))
+                       "clusterProfiler", "EnhancedVolcano", "org.Hs.eg.db"))
 
 install.packages(c("data.table", "readxl", "stringr", "ggplot2", "ggrepel", 
                    "ggfortify", "ggprism", "pheatmap", "VennDiagram", 
@@ -50,7 +49,7 @@ count_tbl_low_rm <- count_tbl[gene_keep, ]
 
 #Creating Meta Data table with info about each sample
 meta <- data.frame(SampleID = colnames(count_tbl),
-                   CellType = c("WT", "WT", "YAPKO", "YAPKO", "YAPTAZKO", "YAPTAZKO"))
+                   CellType = c("WT", "WT", "YAPKO", "YAPKO", "YAP_TAZKO", "YAP_TAZKO"))
 rownames(meta) <- meta$SampleID
 #Combine count data and sample info into object
 dge <- DGEList(counts=count_tbl_low_rm, samples = meta)
@@ -67,7 +66,7 @@ shape_column <- "CellType"
 color_column <- "CellType"
 label <- TRUE
 label_size <- 4
-plot_save_name <- "PCA_Plot.jpg"
+plot_save_name <- "PCA_Plot.pdf"
 
 meta_table <- dge_v$targets
 count_table_t <- as.data.frame(t(dge_v$E))
@@ -85,8 +84,7 @@ pca_plot <- autoplot(pca_prep, label, shape = shape_column, data = meta_table, c
 ggsave(plot_save_name, device = "pdf", units = "cm", width = 16, height = 14)
 
 ##Differential Expression Analysis
-comparison <- "WT_YAPKO_YAPTAZKO"
-
+comparison <- "WT-YAPKO-YAP_TAZKO"
 design <- model.matrix(~ 0 + dge_v$targets[["CellType"]])
 colnames(design) <- gsub(".*]]", "", colnames(design))
 
@@ -99,15 +97,25 @@ fit_2 <- eBayes(fit_2)
 deg_tbl <- topTable(fit_2, coef = colnames(contrast_matrix), n = Inf, p.value=1, lfc=0, sort.by = "p")
 fwrite(deg_tbl, "DEG_P1_lfc0.tsv", sep = "\t", row.names = T)
 
-BiocManager::install(c("clusterProfiler", "org.Hs.eg.db", "pathview", "enrichplot", "DOSE"))
-install.packages(c("data.table", "ggplot2"))
-library(data.table)
+BiocManager::install(c("pathview", "enrichplot", "DOSE"))
 library(clusterProfiler)
 library(org.Hs.eg.db)
-library(ggplot2)
 library(DOSE)
 library(enrichplot)
 deg <- fread("DEG_P1_lfc0.tsv")
 
 p_threshold <- 0.05
 fc_threshold <- 2
+
+# rank the DEGs by the fold change
+deg_order_fc <- deg[order(-logFC)] # rank the genes by logFC in descending order
+logfc <- deg_order_fc$logFC # get logFC
+names(logfc) <- deg_order_fc$V1 # make a named vector of logFC
+
+# GSEA
+enrich_go_gsea <- gseGO(geneList = logfc, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+
+# save the enrichment table
+enrich_go_gsea_df <- enrich_go_gsea@result
+
+fwrite(enrich_go_gsea_df, "enrich_go_gsea_df.tsv", sep = "\t")
