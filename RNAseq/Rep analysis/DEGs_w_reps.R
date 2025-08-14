@@ -119,3 +119,7 @@ enrich_go_gsea <- gseGO(geneList = logfc, OrgDb = org.Hs.eg.db, ont = "ALL", pva
 enrich_go_gsea_df <- enrich_go_gsea@result
 
 fwrite(enrich_go_gsea_df, "enrich_go_gsea_df.tsv", sep = "\t")
+
+#Visualize Top Enriched GO terms
+dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea, showCategory = 10, orderBy="GeneRatio")
+ggsave("dotplot_enrich_go_gsea.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
