@@ -107,6 +107,8 @@ deg <- fread("DEG_P1_lfc0.tsv")
 p_threshold <- 0.05
 fc_threshold <- 2
 
+## Gene Set Enrichment Analysis
+# GO enrichment
 # rank the DEGs by the fold change
 deg_order_fc <- deg[order(-logFC)] # rank the genes by logFC in descending order
 logfc <- deg_order_fc$logFC # get logFC
@@ -123,3 +125,15 @@ fwrite(enrich_go_gsea_df, "enrich_go_gsea_df.tsv", sep = "\t")
 #Visualize Top Enriched GO terms
 dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea, showCategory = 10, orderBy="GeneRatio")
 ggsave("dotplot_enrich_go_gsea.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
+
+##Over-representation Analysis
+#GO Enrichment
+# make a gene list
+deg_up <- deg[logFC > log2(fc_threshold) & adj.P.Val < p_threshold]$V1
+# deg_dn <- deg[logFC < -log2(fc_threshold) & adj.P.Val < p_threshold]$V1
+
+enrich_go_fet_up <- enrichGO(gene = deg_up, OrgDb=org.Hs.eg.db, keyType="SYMBOL", ont="ALL", pvalueCutoff=0.05, pAdjustMethod="BH", qvalueCutoff=0.05)
+
+enrich_go_fet_up_df <- enrich_go_fet_up@result
+
+fwrite(enrich_go_fet_up_df, "enrich_go_fet_up_df.tsv", sep = "\t")
