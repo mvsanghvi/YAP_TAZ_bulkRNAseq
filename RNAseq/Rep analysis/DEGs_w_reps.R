@@ -124,7 +124,7 @@ fwrite(enrich_go_gsea_df, "enrich_go_gsea_df.tsv", sep = "\t")
 
 #Visualize Top Enriched GO terms
 dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea, showCategory = 10, orderBy="GeneRatio")
-ggsave("dotplot_enrich_go_gsea.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
+ggsave("dotplot_enrich_go_gsea_2.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
 
 ##Over-representation Analysis
 #GO Enrichment
@@ -137,3 +137,9 @@ enrich_go_fet_up <- enrichGO(gene = deg_up, OrgDb=org.Hs.eg.db, keyType="SYMBOL"
 enrich_go_fet_up_df <- enrich_go_fet_up@result
 
 fwrite(enrich_go_fet_up_df, "enrich_go_fet_up_df.tsv", sep = "\t")
+# show the top 10 terms
+dotplot_enrich_go_fet_up <- dotplot(enrich_go_fet_up, showCategory = 10, orderBy="GeneRatio")
+
+ggsave("dotplot_enrich_go_fet_up.png", dotplot_enrich_go_fet_up, device = "png", units = "cm", width = 16, height = 18)
+
+##MSigDB Enrichment
