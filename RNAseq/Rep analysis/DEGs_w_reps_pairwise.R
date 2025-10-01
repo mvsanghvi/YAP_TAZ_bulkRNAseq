@@ -86,3 +86,36 @@ tt_YAP_TAZKOvsYAPKO <- topTable(fit2, coef="YAP_TAZKOvsYAPKO", adjust.method="BH
 fwrite(tt_YAPKOvsWT, "DE_YAPKO_vs_WT.tsv", sep="\t", row.names=T)
 fwrite(tt_YAP_TAZKOvsWT, "DE_YAP_TAZKO_vs_WT.tsv", sep="\t", row.names=T)
 fwrite(tt_YAP_TAZKOvsYAPKO, "DE_YAP_TAZKO_vs_YAPKO.tsv", sep="\t", row.names=T)
+
+#Visualizing and GSEA
+BiocManager::install(c("pathview", "enrichplot", "DOSE"))
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(DOSE)
+library(enrichplot)
+deg1 <- fread("DE_YAPKO_vs_WT.tsv")
+deg2 <- fread("DE_YAP_TAZKO_vs_WT.tsv")
+deg3 <- fread("DE_YAP_TAZKO_vs_YAPKO.tsv")
+
+p_threshold <- 0.05
+fc_threshold <- 2
+
+## Gene Set Enrichment Analysis
+# GO enrichment
+# rank the DEGs by the fold change
+#WT vs YAPKO
+deg1_order_fc <- deg1[order(-logFC)] # rank the genes by logFC in descending order
+logfc1 <- deg1_order_fc$logFC # get logFC
+names(logfc1) <- deg1_order_fc$V1 # make a named vector of logFC
+
+# GSEA
+enrich_go_gsea_WT_YK <- gseGO(geneList = logfc1, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+
+# save the enrichment table
+enrich_go_gsea_df_WT_YK <- enrich_go_gsea_WT_YK@result
+
+fwrite(enrich_go_gsea_df_WT_YK, "enrich_go_gsea_df.tsv", sep = "\t")
+
+#Visualize Top Enriched GO terms
+dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea, showCategory = 10, orderBy="GeneRatio")
+ggsave("dotplot_enrich_go_gsea_2.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
