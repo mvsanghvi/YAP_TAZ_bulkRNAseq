@@ -13,6 +13,7 @@ library(edgeR)
 library(ggplot2)
 library(ggrepel)
 library(ggfortify)
+library(pheatmap)
 library(stats)
 library(sva)
 setwd("C:/users/mvsan/code/YAP_TAZ_bulkRNAseq/RNAseq/Rep analysis")
@@ -83,6 +84,111 @@ pca_plot <- autoplot(pca_prep, label, shape = shape_column, data = meta_table, c
 
 ggsave(plot_save_name, device = "pdf", units = "cm", width = 16, height = 14)
 
+# Read differential expression results
+deg_tbl <- fread("DEG_P1_lfc0.tsv")
+dge_v <- readRDS("dge_v.rds")
+
+# Set significance thresholds
+FC_threshold <- 2
+P_threshold <- 0.05
+
+# Create color scheme for different gene categories
+keyvals.colour_rd <- ifelse(
+  (deg_tbl$logFC < -log2(FC_threshold) & deg_tbl$adj.P.Val < P_threshold), 'blue',
+  ifelse((deg_tbl$logFC > log2(FC_threshold) & deg_tbl$adj.P.Val < P_threshold), 'red', 'grey30')
+)
+
+# Add informative labels showing number of genes in each category
+names(keyvals.colour_rd)[keyvals.colour_rd == 'blue'] <- paste0(
+  "Downregulated (n=", 
+  sum(deg_tbl$logFC < -log2(FC_threshold) & deg_tbl$adj.P.Val < P_threshold), 
+  ")"
+)
+
+names(keyvals.colour_rd)[keyvals.colour_rd == 'red'] <- paste0(
+  "Upregulated (n=", 
+  sum(deg_tbl$logFC > log2(FC_threshold) & deg_tbl$adj.P.Val < P_threshold), 
+  ")"
+)
+
+names(keyvals.colour_rd)[keyvals.colour_rd == 'grey30'] <- 'Non-significant'
+
+
+# Prepare sample annotations
+col_annot_df <- data.frame(
+  CellType = dge_v$targets$CellType,
+  row.names = rownames(dge_v$targets)
+)
+col_annot_df <- col_annot_df[order(col_annot_df$CellType), , drop = FALSE]
+
+# Select significant DEGs
+deg_sig <- deg_tbl[abs(deg_tbl$logFC) > log2(FC_threshold) & 
+                     deg_tbl$adj.P.Val < P_threshold]$V1
+expr_deg <- dge_v$E[deg_sig, rownames(col_annot_df), drop = FALSE]
+
+# Create heatmap
+heatmap_custom <- pheatmap(
+  expr_deg,
+  scale = "row",
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,
+  show_rownames = FALSE,
+  show_colnames = TRUE,
+  color = colorRampPalette(c("navy", "white", "red"))(100),
+  annotation_col = col_annot_df,
+  main = "Differential Expression Heatmap"
+)
+
+# Save to image
+ggsave("WT_Y2_YT2_rnaseq.png", plot=heatmap_custom)
+
+save_pheatmap_pdf <- function(x, filename, width=8, height=8) {
+  stopifnot(!missing(x))
+  stopifnot(!missing(filename))
+  pdf(filename, width=width, height=height)
+  grid::grid.newpage()
+  grid::grid.draw(x$gtable)
+  dev.off()
+}
+
+save_pheatmap_pdf(heatmap_custom, "heatmap_custom.pdf", width=4, height=4)
+# 7. Heatmap of Top Variable Genes
+# Calculate variance of each gene
+gene_vars <- apply(dge_v$E, 1, var)
+gene_var_df <- data.frame(gene_id = names(gene_vars), variance = gene_vars)
+gene_var_df <- gene_var_df[order(-gene_var_df$variance),]  # Sort by variance
+fwrite(gene_var_df, "gene_variance.tsv", sep="\t", row.names=FALSE)
+
+# Select top 100 most variable genes
+top_genes <- names(sort(gene_vars, decreasing = TRUE))[1:100]
+log_counts_top <- dge_v$E[top_genes, ]
+
+# Scale for heatmap (row-wise)
+log_counts_top_scaled <- t(scale(t(log_counts_top)))
+
+# Specify the exact sample order you want
+sample_order <- c("WT_1", "WT_2", "Y2_1", "Y2_2", "YT_1", "YT_2")
+
+# Reorder columns and annotation according to your desired sample order
+log_counts_top_scaled_ordered <- log_counts_top_scaled[, sample_order]
+annotation_col_ordered <- data.frame(CellType = meta$CellType)
+rownames(annotation_col_ordered) <- meta$SampleID
+annotation_col_ordered <- annotation_col_ordered[sample_order, , drop = FALSE]
+
+# Plot heatmap with columns ordered and clustering disabled for columns
+mymap <- pheatmap(log_counts_top_scaled_ordered,
+                  cluster_rows = TRUE,
+                  cluster_cols = FALSE,
+                  treeheight_row = 0,  # Set dendrogram height to 0 (hides it)
+                  treeheight_col = 0,  # Set dendrogram height to 0 (hides it)
+                  annotation_col = annotation_col_ordered,
+                  show_rownames = TRUE,
+                  fontsize_row = 5,
+                  fontsize_col = 5,
+                  main = "Top 100 Most Variable Genes")
+
+# Save to image
+ggsave("WT_Y2_YT2_DEG.png", plot=mymap)
 ##Differential Expression Analysis
 comparison <- "WT-YAPKO-YAP_TAZKO"
 design <- model.matrix(~ 0 + dge_v$targets[["CellType"]])
