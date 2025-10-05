@@ -203,11 +203,12 @@ fit_2 <- eBayes(fit_2)
 deg_tbl <- topTable(fit_2, coef = colnames(contrast_matrix), n = Inf, p.value=1, lfc=0, sort.by = "p")
 fwrite(deg_tbl, "DEG_P1_lfc0.tsv", sep = "\t", row.names = T)
 
-BiocManager::install(c("pathview", "enrichplot", "DOSE"))
+BiocManager::install(c("pathview", "enrichplot", "DOSE", "KEGGREST"))
 library(clusterProfiler)
 library(org.Hs.eg.db)
 library(DOSE)
 library(enrichplot)
+library(KEGGREST)
 deg <- fread("DEG_P1_lfc0.tsv")
 
 p_threshold <- 0.05
@@ -248,4 +249,20 @@ dotplot_enrich_go_fet_up <- dotplot(enrich_go_fet_up, showCategory = 10, orderBy
 
 ggsave("dotplot_enrich_go_fet_up.png", dotplot_enrich_go_fet_up, device = "png", units = "cm", width = 16, height = 18)
 
-##MSigDB Enrichment
+##KEGG analysis
+enrich_kegg_gsea <- gseKEGG(geneList = logfc, organism = "hsa")
+deg_sig <- deg[deg$adj.P.Val < p_threshold & abs(deg$logFC) > fc_threshold, ]
+gene_ids <- bitr(deg_sig$V1, fromType = "SYMBOL",
+                 toType = "ENTREZID", 
+                 OrgDb = org.Hs.eg.db)
+##ORA
+kk <- enrichKEGG(gene         = gene_ids$ENTREZID,
+                 organism     = 'hsa',
+                 pvalueCutoff = 0.05)
+
+# View results
+head(kk)
+
+# Plot results
+barplot(kk, showCategory = 20)
+dotplot(kk, showCategory = 20)
