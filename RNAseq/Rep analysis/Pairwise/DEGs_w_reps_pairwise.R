@@ -13,6 +13,7 @@ library(edgeR)
 library(ggplot2)
 library(ggrepel)
 library(ggfortify)
+library(pheatmap)
 library(stats)
 library(sva)
 setwd("C:/users/mvsan/code/YAP_TAZ_bulkRNAseq/RNAseq/Rep analysis/Pairwise")
@@ -94,11 +95,7 @@ library(org.Hs.eg.db)
 library(DOSE)
 library(enrichplot)
 deg1 <- fread("DE_YAPKO_vs_WT.tsv")
-p_threshold <- 0.05
-fc_threshold <- 2
 deg2 <- fread("DE_YAP_TAZKO_vs_WT.tsv")
-p_threshold <- 0.05
-fc_threshold <- 2
 deg3 <- fread("DE_YAP_TAZKO_vs_YAPKO.tsv")
 p_threshold <- 0.05
 fc_threshold <- 2
@@ -117,8 +114,36 @@ fwrite(enrich_go_gsea_df_WT_YK, "enrich_go_gsea_df_WT_YK.tsv", sep = "\t")
 #Visualize Top Enriched GO terms
 dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_WT_YK, showCategory = 10, orderBy="GeneRatio")
 ggsave("dotplot_enrich_go_gsea_2_WT_YK.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
+##Over-representation Analysis
+# make a gene list
+deg_up1 <- deg1[logFC > log2(fc_threshold) & adj.P.Val < p_threshold]$V1
+# deg_dn <- deg[logFC < -log2(fc_threshold) & adj.P.Val < p_threshold]$V1
+enrich_go_fet_up1 <- enrichGO(gene = deg_up1, OrgDb=org.Hs.eg.db, keyType="SYMBOL", ont="ALL", pvalueCutoff=0.05, pAdjustMethod="BH", qvalueCutoff=0.05)
+enrich_go_fet_up_df1 <- enrich_go_fet_up1@result
+fwrite(enrich_go_fet_up_df1, "enrich_go_fet_up_df1.tsv", sep = "\t")
+# show the top 10 terms
+dotplot_enrich_go_fet_up <- dotplot(enrich_go_fet_up, showCategory = 10, orderBy="GeneRatio")
+ggsave("dotplot_enrich_go_fet_up.png", dotplot_enrich_go_fet_up, device = "png", units = "cm", width = 16, height = 18)
+
 #KEGG Analysis
 #enrich_kegg_gsea <- gseKEGG(geneList = logfc, organism = "hsa")
+# Prepare ranked gene list
+deg_list <- deg1
+gene_list <- deg_list$logFC
+names(gene_list) <- deg_list$ENTREZID
+gene_list <- sort(gene_list, decreasing = TRUE)
+
+# GSEA or over-representation analysis for GO Biological Process
+gsea_res <- gseGO(geneList = gene_list,
+                  OrgDb = org.Hs.eg.db,
+                  ont = "BP",
+                  keyType = "ENTREZID",
+                  pvalueCutoff = 0.05,
+                  verbose = FALSE)
+selected_pathways <- c("GO:0008284", "GO:0045787") # example IDs
+pathway_genes <- unique(unlist(geneInCategory(gsea_res, selected_pathways)))
+expr_subset <- dge_v$E[rownames(dge_v$E) %in% pathway_genes, ]
+pheatmap(expr_subset, scale = "row")
 
 ##WT vs YAP/TAZKO
 deg2_order_fc <- deg2[order(-logFC)] # rank the genes by logFC in descending order
