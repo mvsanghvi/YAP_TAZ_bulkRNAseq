@@ -57,34 +57,40 @@ dge <- DGEList(counts=count_tbl_low_rm, samples = meta)
 dge <- calcNormFactors(dge, method = "TMM")
 dge_v <- voom(dge, plot=TRUE)
 
-##VISULATION
-# save the dge_v object for later use
-saveRDS(dge_v, "dge_v.rds")
 
-#Create PCA Plot
-shape_column <- "CellType"
-color_column <- "CellType"
-label <- TRUE
-label_size <- 4
-plot_save_name <- "PCA_Plot.pdf"
-
-meta_table <- dge_v$targets
-count_table_t <- as.data.frame(t(dge_v$E))
-pca_prep <- prcomp(count_table_t, scale. = TRUE)
-
-pca_plot <- autoplot(pca_prep, label, shape = shape_column, data = meta_table, colour = color_column) +
-  geom_text_repel(aes(label = rownames(meta_table)), size = label_size) +
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.background = element_blank(),
-        axis.line = element_line(colour = "black"),
-        panel.grid.minor.y=element_blank(),
-        panel.grid.major.y=element_blank())
-
-ggsave(plot_save_name, device = "pdf", units = "cm", width = 16, height = 14)# Use your existing CellType group variable from meta
+# Use your existing CellType group variable from meta
 group <- factor(meta$CellType)
 design <- model.matrix(~0 + group)
 colnames(design) <- levels(group)
+
+# ##VISULATION
+# # save the dge_v object for later use
+# saveRDS(dge_v, "dge_v.rds")
+# 
+# #Create PCA Plot
+# shape_column <- "CellType"
+# color_column <- "CellType"
+# label <- TRUE
+# label_size <- 4
+# plot_save_name <- "PCA_Plot.pdf"
+# 
+# meta_table <- dge_v$targets
+# count_table_t <- as.data.frame(t(dge_v$E))
+# pca_prep <- prcomp(count_table_t, scale. = TRUE)
+# 
+# pca_plot <- autoplot(pca_prep, label, shape = shape_column, data = meta_table, colour = color_column) +
+#   geom_text_repel(aes(label = rownames(meta_table)), size = label_size) +
+#   theme(panel.grid.major = element_blank(),
+#         panel.grid.minor = element_blank(),
+#         panel.background = element_blank(),
+#         axis.line = element_line(colour = "black"),
+#         panel.grid.minor.y=element_blank(),
+#         panel.grid.major.y=element_blank())
+# 
+# ggsave(plot_save_name, device = "pdf", units = "cm", width = 16, height = 14)# Use your existing CellType group variable from meta
+# group <- factor(meta$CellType)
+# design <- model.matrix(~0 + group)
+# colnames(design) <- levels(group)
 
 # Fit the linear model to normalized counts (voom object)
 fit <- lmFit(dge_v, design)
@@ -139,6 +145,221 @@ dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_WT_YK, showCategory = 10, order
 ggsave("dotplot_enrich_go_gsea_2_WT_YK.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
 #KEGG Analysis
 #enrich_kegg_gsea <- gseKEGG(geneList = logfc, organism = "hsa")
+
+#### FIX THE PATHWAY LIST AND TRY DIFFERENT DATABASES ####
+
+library(msigdbr)
+library(clusterProfiler)
+library(dplyr)
+library(stringr)
+library(pheatmap)
+
+# 1. FIRST, FIX THE RANKING METRIC TO HANDLE TIES
+deg1_ranked <- deg1[order(-logFC)]
+deg1_ranked$rank_metric <- sign(deg1_ranked$logFC) * (-log10(deg1_ranked$P.Value))
+deg1_ranked <- deg1_ranked[order(-rank_metric)]
+
+gene_list <- deg1_ranked$rank_metric
+names(gene_list) <- deg1_ranked$V1
+gene_list <- gene_list[!is.na(gene_list) & !is.infinite(gene_list)]
+gene_list <- gene_list[!duplicated(names(gene_list))]
+
+cat("Gene list length:", length(gene_list), "\n")
+cat("Ties in ranking:", sum(duplicated(gene_list)), "\n")
+
+# 2. TRY HALLMARK PATHWAYS (50 well-defined biological states/processes)
+hallmark_pathways <- msigdbr(species = "Homo sapiens", category = "H")
+
+hallmark_list <- hallmark_pathways %>% 
+  dplyr::select(gs_name, gene_symbol) %>% 
+  dplyr::distinct()
+
+# Check coverage
+hallmark_genes_in_data <- sum(unique(hallmark_list$gene_symbol) %in% names(gene_list))
+total_hallmark_genes <- length(unique(hallmark_list$gene_symbol))
+cat("Hallmark genes in your data:", hallmark_genes_in_data, "/", total_hallmark_genes, "\n")
+
+# Run GSEA with Hallmark
+gsea_hallmark <- GSEA(geneList = gene_list,
+                      TERM2GENE = hallmark_list,
+                      pvalueCutoff = 0.25,
+                      minGSSize = 15,
+                      maxGSSize = 500,
+                      pAdjustMethod = "BH",
+                      verbose = TRUE)
+
+if (!is.null(gsea_hallmark) && nrow(as.data.frame(gsea_hallmark)) > 0) {
+  gsea_hallmark_df <- as.data.frame(gsea_hallmark)
+  print(gsea_hallmark_df[, c("Description", "NES", "pvalue", "p.adjust")])
+  fwrite(gsea_hallmark_df, "GSEA_Hallmark_pathways.tsv", sep = "\t", row.names = FALSE)
+  
+  # Create heatmaps
+  expr_matrix <- dge_v$E
+  annotation_col <- data.frame(CellType = meta$CellType, row.names = meta$SampleID)
+  
+  for (i in 1:min(10, nrow(gsea_hallmark_df))) {
+    pathway_name <- gsea_hallmark_df$Description[i]
+    pathway_genes <- str_split(gsea_hallmark_df$core_enrichment[i], "/")[[1]]
+    
+    expr_pathway <- expr_matrix[rownames(expr_matrix) %in% pathway_genes, ]
+    
+    if(nrow(expr_pathway) > 1) {
+      pheatmap(expr_pathway,
+               scale = "row",
+               annotation_col = annotation_col,
+               main = str_wrap(pathway_name, width = 50),
+               fontsize_row = 8,
+               filename = paste0("heatmap_Hallmark_", i, ".png"),
+               width = 10,
+               height = max(8, nrow(expr_pathway) * 0.25))
+    }
+  }
+} else {
+  cat("No significant Hallmark pathways found.\n")
+}
+
+# 3. TRY REACTOME PATHWAYS (biological pathways)
+reactome_pathways <- msigdbr(species = "Homo sapiens", 
+                             category = "C2", 
+                             subcategory = "CP:REACTOME")
+
+reactome_list <- reactome_pathways %>% 
+  dplyr::select(gs_name, gene_symbol) %>% 
+  dplyr::distinct()
+
+reactome_genes_in_data <- sum(unique(reactome_list$gene_symbol) %in% names(gene_list))
+total_reactome_genes <- length(unique(reactome_list$gene_symbol))
+cat("Reactome genes in your data:", reactome_genes_in_data, "/", total_reactome_genes, "\n")
+
+gsea_reactome <- GSEA(geneList = gene_list,
+                      TERM2GENE = reactome_list,
+                      pvalueCutoff = 0.25,
+                      minGSSize = 15,
+                      maxGSSize = 500,
+                      pAdjustMethod = "BH",
+                      verbose = TRUE)
+
+if (!is.null(gsea_reactome) && nrow(as.data.frame(gsea_reactome)) > 0) {
+  gsea_reactome_df <- as.data.frame(gsea_reactome)
+  
+  # Filter for signaling pathways
+  signaling_reactome <- gsea_reactome_df[grepl("WNT|Hippo|FGF|Signaling|MAPK|TGF|Notch|Hedgehog", 
+                                               gsea_reactome_df$Description, 
+                                               ignore.case = TRUE), ]
+  
+  print(head(signaling_reactome[, c("Description", "NES", "pvalue", "p.adjust")], 20))
+  fwrite(gsea_reactome_df, "GSEA_Reactome_pathways.tsv", sep = "\t", row.names = FALSE)
+  
+  # Create heatmaps for signaling pathways
+  for (i in 1:min(10, nrow(signaling_reactome))) {
+    pathway_name <- signaling_reactome$Description[i]
+    pathway_genes <- str_split(signaling_reactome$core_enrichment[i], "/")[[1]]
+    
+    expr_pathway <- expr_matrix[rownames(expr_matrix) %in% pathway_genes, ]
+    
+    if(nrow(expr_pathway) > 1) {
+      pheatmap(expr_pathway,
+               scale = "row",
+               annotation_col = annotation_col,
+               main = str_wrap(pathway_name, width = 50),
+               fontsize_row = 7,
+               filename = paste0("heatmap_Reactome_signaling_", i, ".png"),
+               width = 10,
+               height = max(8, nrow(expr_pathway) * 0.25))
+    }
+  }
+} else {
+  cat("No significant Reactome pathways found.\n")
+}
+
+#### METHOD 3: CREATE SPECIFIC PATHWAY HEATMAPS WITH CUSTOM SETTINGS ####
+
+# Function to create a single pathway heatmap
+create_pathway_heatmap <- function(pathway_data, pathway_name_column = "Description", 
+                                   expr_matrix, annotation_col, 
+                                   output_prefix = "heatmap_pathway") {
+  
+  pathway_name <- pathway_data[[pathway_name_column]]
+  pathway_nes <- pathway_data$NES
+  pathway_padj <- pathway_data$p.adjust
+  pathway_genes <- str_split(pathway_data$core_enrichment, "/")[[1]]
+  
+  expr_pathway <- expr_matrix[rownames(expr_matrix) %in% pathway_genes, ]
+  
+  if(nrow(expr_pathway) < 2) {
+    cat("Warning: Less than 2 genes found for", pathway_name, "\n")
+    return(NULL)
+  }
+  
+  # Clean up pathway name for display
+  display_name <- gsub("HALLMARK_|REACTOME_", "", pathway_name)
+  display_name <- gsub("_", " ", display_name)
+  
+  # Create title
+  title <- paste0(display_name, "\n",
+                  "NES = ", round(pathway_nes, 2), 
+                  ", p.adj = ", format(pathway_padj, digits = 3),
+                  " (n=", nrow(expr_pathway), " genes)")
+  
+  # Clean filename
+  file_name_clean <- gsub("[^A-Za-z0-9_]", "_", pathway_name)
+  
+  # Create heatmap
+  pheatmap(expr_pathway,
+           scale = "row",
+           annotation_col = annotation_col,
+           cluster_cols = FALSE,
+           clustering_distance_rows = "euclidean",
+           main = str_wrap(title, width = 60),
+           fontsize_row = 8,
+           fontsize_col = 11,
+           color = colorRampPalette(c("blue", "white", "red"))(100),
+           border_color = NA,
+           filename = paste0(output_prefix, "_", file_name_clean, ".png"),
+           width = 10,
+           height = max(8, nrow(expr_pathway) * 0.3))
+  
+  cat("Created:", pathway_name, "(", nrow(expr_pathway), "genes )\n")
+  
+  return(expr_pathway)
+}
+
+# Example: Create specific pathway heatmaps
+
+# WNT Signaling
+wnt_data <- gsea_hallmark_df[gsea_hallmark_df$Description == "HALLMARK_WNT_BETA_CATENIN_SIGNALING", ]
+create_pathway_heatmap(wnt_data, expr_matrix = expr_matrix, 
+                       annotation_col = annotation_col, 
+                       output_prefix = "heatmap_WNT_signaling")
+
+# Hippo Signaling
+hippo_data <- gsea_reactome_df[gsea_reactome_df$Description == "REACTOME_SIGNALING_BY_HIPPO", ]
+create_pathway_heatmap(hippo_data, expr_matrix = expr_matrix, 
+                       annotation_col = annotation_col, 
+                       output_prefix = "heatmap_Hippo_signaling")
+
+# Hedgehog Signaling
+hedgehog_data <- gsea_hallmark_df[gsea_hallmark_df$Description == "HALLMARK_HEDGEHOG_SIGNALING", ]
+create_pathway_heatmap(hedgehog_data, expr_matrix = expr_matrix, 
+                       annotation_col = annotation_col, 
+                       output_prefix = "heatmap_Hedgehog_signaling")
+
+# Notch Signaling
+notch_data <- gsea_hallmark_df[gsea_hallmark_df$Description == "HALLMARK_NOTCH_SIGNALING", ]
+create_pathway_heatmap(notch_data, expr_matrix = expr_matrix, 
+                       annotation_col = annotation_col, 
+                       output_prefix = "heatmap_Notch_signaling")
+# MYC Targets
+myc_data <- gsea_hallmark_df[gsea_hallmark_df$Description == "HALLMARK_MYC_TARGETS_V2", ]
+create_pathway_heatmap(myc_data, expr_matrix = expr_matrix, 
+                               annotation_col = annotation_col, 
+                               output_prefix = "heatmap_ordered_MYC")
+
+# P53 Pathway
+p53_data <- gsea_hallmark_df[gsea_hallmark_df$Description == "HALLMARK_P53_PATHWAY", ]
+create_pathway_heatmap(p53_data, expr_matrix = expr_matrix, 
+                               annotation_col = annotation_col, 
+                               output_prefix = "heatmap_ordered_P53")
 
 ##WT vs YAP/TAZKO
 deg2_order_fc <- deg2[order(-logFC)] # rank the genes by logFC in descending order
