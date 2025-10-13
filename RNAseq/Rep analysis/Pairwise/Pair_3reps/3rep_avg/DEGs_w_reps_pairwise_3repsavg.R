@@ -1,0 +1,222 @@
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install(c("sva", "edgeR", "limma", "Biobase", "biomaRt", 
+                       "clusterProfiler", "EnhancedVolcano", "org.Hs.eg.db", 
+                       "pathview", "enrichplot", "DOSE", "msigdbr"))
+install.packages(c("data.table", "readxl", "stringr", "ggplot2", "ggrepel", 
+                   "ggfortify", "ggprism", "pheatmap", "VennDiagram", 
+                   "corrplot", "Hmisc", "tidyverse"))
+
+library(data.table)
+library(limma)
+library(edgeR)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(msigdbr)
+library(pheatmap)
+library(stringr)
+library(dplyr)
+
+setwd("C:/users/mvsan/code/YAP_TAZ_bulkRNAseq/RNAseq/Rep analysis/Pairwise/Pair_3reps/3rep_avg")
+
+# Data Cleaning and Preprocessing
+
+# 1. Read count files and combine into matrix
+file_names <- list.files(path= ".", pattern = "featureCounts_exon\\.txt$", full.names = TRUE)
+dgls <- readDGE(file_names, columns = c(1, 7), skip = 1)
+counts_raw <- as.data.frame(dgls$counts)
+
+# 2. Rename sample columns
+sample_names <- gsub("_featureCounts_exon", "", colnames(counts_raw))
+colnames(counts_raw) <- sample_names
+
+# 3. Save combined counts (optional)
+fwrite(counts_raw, "counts_raw.tsv", sep = "\t", row.names = TRUE)
+
+# 4. Read raw counts and set rownames
+count_tbl <- fread("counts_raw.tsv", data.table = FALSE)
+rownames(count_tbl) <- count_tbl[[1]]
+count_tbl <- count_tbl[, -1]
+
+# 5. Filter low-expression genes
+perc_keep <- 0.8
+gene_keep <- rowSums(count_tbl > 0) >= ceiling(perc_keep * ncol(count_tbl))
+count_filtered <- count_tbl[gene_keep, ]
+
+# 6. Prepare metadata
+meta <- data.frame(SampleID = colnames(count_filtered),
+                   CellType = c("WT", "WT", "WT", "YAPKO", "YAPKO", "YAPKO", 
+                                "YAP_TAZKO", "YAP_TAZKO", "YAP_TAZKO"))
+rownames(meta) <- meta$SampleID
+
+# 7. Create DGEList and normalize
+dge <- DGEList(counts = count_filtered, samples = meta)
+dge <- calcNormFactors(dge, method = "TMM")
+dge_v <- voom(dge, plot = TRUE)
+
+#Differential Expression Analysis
+group <- factor(meta$CellType)
+design <- model.matrix(~0 + group)
+colnames(design) <- levels(group)
+
+fit <- lmFit(dge_v, design)
+
+contrast.matrix <- makeContrasts(
+  YAPKOvsWT = YAPKO - WT,
+  YAP_TAZKOvsWT = YAP_TAZKO - WT,
+  YAP_TAZKOvsYAPKO = YAP_TAZKO - YAPKO,
+  levels = design
+)
+
+fit2 <- contrasts.fit(fit, contrast.matrix)
+fit2 <- eBayes(fit2)
+
+tT_YAPKOvsWT <- topTable(fit2, coef="YAPKOvsWT", adjust.method="BH", number=Inf, p.value=1, lfc=0, sort.by = "p")
+tT_YAP_TAZKOvsWT <- topTable(fit2, coef="YAP_TAZKOvsWT", adjust.method="BH", number=Inf, p.value=1, lfc=0, sort.by = "p")
+tT_YAP_TAZKOvsYAPKO <- topTable(fit2, coef="YAP_TAZKOvsYAPKO", adjust.method="BH", number=Inf, p.value=1, lfc=0, sort.by = "p")
+
+fwrite(tT_YAPKOvsWT, "DE_YAPKO_vs_WT.tsv", sep = "\t", row.names = TRUE)
+fwrite(tT_YAP_TAZKOvsWT, "DE_YAP_TAZKO_vs_WT.tsv", sep = "\t", row.names = TRUE)
+fwrite(tT_YAP_TAZKOvsYAPKO, "DE_YAP_TAZKO_vs_YAPKO.tsv", sep = "\t", row.names = TRUE)
+# Averaging Replicates
+expr_matrix <- dge_v$E   # Normalized expression matrix (log2 CPM)
+meta <- meta[colnames(expr_matrix), ]  # Ensure matching order
+
+group_factor <- factor(meta$CellType)
+expr_avg <- sapply(levels(group_factor), function(g) {
+  rowMeans(expr_matrix[, group_factor == g, drop = FALSE])
+})
+expr_avg <- as.data.frame(expr_avg)
+rownames(expr_avg) <- rownames(expr_matrix)
+
+annotation_col_avg <- data.frame(CellType = colnames(expr_avg))
+rownames(annotation_col_avg) <- colnames(expr_avg)
+
+# Desired order of groups
+desired_order <- c("WT", "YAPKO", "YAP_TAZKO")
+
+# Reorder columns of averaged expression matrix
+expr_avg <- expr_avg[, desired_order]
+
+# Reorder annotation to match
+annotation_col_avg <- annotation_col_avg[desired_order,, drop=FALSE]
+
+# Get Reactome pathways from msigdbr (subcategory: CP:REACTOME)
+reactome_pathways <- msigdbr(species = "Homo sapiens", 
+                             category = "C2", 
+                             subcategory = "CP:REACTOME") %>%
+                    dplyr::select(gs_name, gene_symbol) %>%
+                    dplyr::distinct()
+
+# Filter for Notch and Hippo signaling pathways by keywords (case-insensitive)
+notch_pathways <- reactome_pathways %>%
+                  filter(stringr::str_detect(gs_name, regex("Notch", ignore_case = TRUE)))
+
+hippo_pathways <- reactome_pathways %>%
+                  filter(stringr::str_detect(gs_name, regex("Hippo", ignore_case = TRUE)))
+
+# Optional: GSEA for Reactome pathways, similar to what you did for Hallmark.
+# Here, we assume you have gene_list ready (ranked DE genes).
+
+gsea_reactome <- GSEA(geneList = gene_list,
+                      TERM2GENE = reactome_pathways,
+                      pvalueCutoff = 0.25,
+                      minGSSize = 15,
+                      maxGSSize = 500,
+                      pAdjustMethod = "BH",
+                      verbose = TRUE)
+
+gsea_reactome_df <- as.data.frame(gsea_reactome)
+
+# Filter GSEA results for Notch and Hippo pathways
+notch_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("Notch", ignore_case = TRUE)), ]
+hippo_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("Hippo", ignore_case = TRUE)), ]
+
+# Function create_pathway_heatmap is reused from your pipeline
+
+# Create heatmaps for Notch pathways
+for(i in seq_len(nrow(notch_gsea))) {
+    create_pathway_heatmap(notch_gsea[i, ], expr_avg, annotation_col_avg, output_prefix = "heatmap_Reactome_Notch")
+}
+
+# Create heatmaps for Hippo pathways
+for(i in seq_len(nrow(hippo_gsea))) {
+    create_pathway_heatmap(hippo_gsea[i, ], expr_avg, annotation_col_avg, output_prefix = "heatmap_Reactome_Hippo")
+}
+
+
+# Save averaged matrix for record
+fwrite(data.frame(Gene = rownames(expr_avg), expr_avg), 
+       "expression_matrix_averaged.tsv", sep = "\t", row.names = FALSE)
+
+# Prepare Differential Expression for GSEA
+# Read differential expression results (example for YAPKO vs WT)
+deg <- fread("DE_YAPKO_vs_WT.tsv")
+deg$rank_metric <- sign(deg$logFC) * (-log10(deg$P.Value))
+deg_ranked <- deg[order(-deg$rank_metric), ]
+
+gene_list <- deg_ranked$rank_metric
+names(gene_list) <- deg_ranked$V1
+# Remove NAs and duplicates in gene names
+valid_idx <- !is.na(gene_list) & !is.infinite(gene_list)
+gene_list <- gene_list[valid_idx]
+gene_list <- gene_list[!duplicated(names(gene_list))]
+
+#Get Hallmark Pathways from msigdbr 
+hallmark_pathways <- msigdbr(species = "Homo sapiens", category = "H") %>% 
+  dplyr::select(gs_name, gene_symbol) %>% 
+  dplyr::distinct()
+
+# Run GSEA (example)
+gsea_hallmark <- GSEA(geneList = gene_list,
+                      TERM2GENE = hallmark_pathways,
+                      pvalueCutoff = 0.25,
+                      minGSSize = 15,
+                      maxGSSize = 500,
+                      pAdjustMethod = "BH",
+                      verbose = TRUE)
+
+gsea_hallmark_df <- as.data.frame(gsea_hallmark)
+
+#Function to create heatmaps with averaged replicates
+create_pathway_heatmap <- function(pathway_data, expr_matrix, annotation_col, output_prefix = "heatmap") {
+  
+  pathway_name <- pathway_data$Description
+  pathway_genes <- str_split(pathway_data$core_enrichment, "/")[[1]]
+  
+  expr_pathway <- expr_matrix[rownames(expr_matrix) %in% pathway_genes, ]
+  
+  if (nrow(expr_pathway) < 2) {
+    message("Warning: Less than 2 genes found for ", pathway_name)
+    return(NULL)
+  }
+  
+  file_safe_name <- gsub("[^A-Za-z0-9_]", "_", pathway_name)
+  title <- paste0(gsub("HALLMARK_|REACTOME_", "", pathway_name), "\n",
+                  "NES = ", round(pathway_data$NES, 2), 
+                  ", p.adj = ", format(pathway_data$p.adjust, digits = 3),
+                  " (n=", nrow(expr_pathway), " genes)")
+  
+  pheatmap(expr_pathway,
+           scale = "row",
+           annotation_col = annotation_col,
+           cluster_cols = FALSE,
+           fontsize_row = 8,
+           main = strwrap(title, width = 60) %>% paste(collapse = "\n"),
+           color = colorRampPalette(c("blue", "white", "red"))(100),
+           border_color = NA,
+           filename = paste0(output_prefix, "_", file_safe_name, ".png"),
+           width = 10,
+           height = max(8, nrow(expr_pathway) * 0.3))
+  
+  message("Created heatmap for pathway: ", pathway_name)
+}
+
+# --- Example: Generate heatmaps for top 10 Hallmark pathways ---
+
+top_n <- min(10, nrow(gsea_hallmark_df))
+
+for (i in seq_len(top_n)) {
+  create_pathway_heatmap(gsea_hallmark_df[i, ], expr_avg, annotation_col_avg, output_prefix = "hallmark_pathway")
+}
