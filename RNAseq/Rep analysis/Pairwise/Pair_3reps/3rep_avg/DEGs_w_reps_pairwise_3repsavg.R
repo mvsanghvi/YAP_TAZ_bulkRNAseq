@@ -102,6 +102,12 @@ expr_avg <- expr_avg[, desired_order]
 # Reorder annotation to match
 annotation_col_avg <- annotation_col_avg[desired_order,, drop=FALSE]
 
+# Create ranking metric (e.g., variance across groups) and gene_list
+gene_list <- apply(expr_avg, 1, var)
+names(gene_list) <- rownames(expr_avg)
+gene_list <- gene_list[!is.na(gene_list) & !duplicated(names(gene_list))]
+gene_list <- sort(gene_list, decreasing = TRUE)
+
 # Get Reactome pathways from msigdbr (subcategory: CP:REACTOME)
 reactome_pathways <- msigdbr(species = "Homo sapiens", 
                              category = "C2", 
@@ -115,13 +121,12 @@ notch_pathways <- reactome_pathways %>%
 
 hippo_pathways <- reactome_pathways %>%
                   filter(stringr::str_detect(gs_name, regex("Hippo", ignore_case = TRUE)))
-
-# Optional: GSEA for Reactome pathways, similar to what you did for Hallmark.
-# Here, we assume you have gene_list ready (ranked DE genes).
+fgf_pathways <- reactome_pathways %>%
+                  filter(stringr::str_detect(gs_name, regex("FGF", ignore_case = TRUE)))
 
 gsea_reactome <- GSEA(geneList = gene_list,
                       TERM2GENE = reactome_pathways,
-                      pvalueCutoff = 0.25,
+                      pvalueCutoff = 0.5,
                       minGSSize = 15,
                       maxGSSize = 500,
                       pAdjustMethod = "BH",
@@ -132,7 +137,7 @@ gsea_reactome_df <- as.data.frame(gsea_reactome)
 # Filter GSEA results for Notch and Hippo pathways
 notch_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("Notch", ignore_case = TRUE)), ]
 hippo_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("Hippo", ignore_case = TRUE)), ]
-
+fgf_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("FGF", ignore_case = TRUE)), ]
 # Function create_pathway_heatmap is reused from your pipeline
 
 # Create heatmaps for Notch pathways
@@ -145,6 +150,10 @@ for(i in seq_len(nrow(hippo_gsea))) {
     create_pathway_heatmap(hippo_gsea[i, ], expr_avg, annotation_col_avg, output_prefix = "heatmap_Reactome_Hippo")
 }
 
+# Create heatmaps for FGF pathways
+for(i in seq_len(nrow(fgf_gsea))) {
+  create_pathway_heatmap(fgf_gsea[i, ], expr_avg, annotation_col_avg, output_prefix = "heatmap_Reactome_FGF")
+}
 
 # Save averaged matrix for record
 fwrite(data.frame(Gene = rownames(expr_avg), expr_avg), 
