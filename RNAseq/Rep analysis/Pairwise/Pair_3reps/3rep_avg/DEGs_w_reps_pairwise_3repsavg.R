@@ -17,6 +17,7 @@ library(msigdbr)
 library(pheatmap)
 library(stringr)
 library(dplyr)
+library(ggplot2)
 
 setwd("C:/users/mvsan/code/YAP_TAZ_bulkRNAseq/RNAseq/Rep analysis/Pairwise/Pair_3reps/3rep_avg")
 
@@ -79,85 +80,139 @@ tT_YAP_TAZKOvsYAPKO <- topTable(fit2, coef="YAP_TAZKOvsYAPKO", adjust.method="BH
 fwrite(tT_YAPKOvsWT, "DE_YAPKO_vs_WT.tsv", sep = "\t", row.names = TRUE)
 fwrite(tT_YAP_TAZKOvsWT, "DE_YAP_TAZKO_vs_WT.tsv", sep = "\t", row.names = TRUE)
 fwrite(tT_YAP_TAZKOvsYAPKO, "DE_YAP_TAZKO_vs_YAPKO.tsv", sep = "\t", row.names = TRUE)
-# Averaging Replicates
-expr_matrix <- dge_v$E   # Normalized expression matrix (log2 CPM)
-meta <- meta[colnames(expr_matrix), ]  # Ensure matching order
+# # Averaging Replicates
+# expr_matrix <- dge_v$E   # Normalized expression matrix (log2 CPM)
+# meta <- meta[colnames(expr_matrix), ]  # Ensure matching order
+# 
+# group_factor <- factor(meta$CellType)
+# expr_avg <- sapply(levels(group_factor), function(g) {
+#   rowMeans(expr_matrix[, group_factor == g, drop = FALSE])
+# })
+# expr_avg <- as.data.frame(expr_avg)
+# rownames(expr_avg) <- rownames(expr_matrix)
+# 
+# annotation_col_avg <- data.frame(CellType = colnames(expr_avg))
+# rownames(annotation_col_avg) <- colnames(expr_avg)
 
-group_factor <- factor(meta$CellType)
-expr_avg <- sapply(levels(group_factor), function(g) {
-  rowMeans(expr_matrix[, group_factor == g, drop = FALSE])
-})
-expr_avg <- as.data.frame(expr_avg)
-rownames(expr_avg) <- rownames(expr_matrix)
+# # Desired order of groups
+# desired_order <- c("WT", "YAPKO", "YAP_TAZKO")
+# 
+# # Reorder columns of averaged expression matrix
+# expr_avg <- expr_avg[, desired_order]
+# 
+# # Reorder annotation to match
+# annotation_col_avg <- annotation_col_avg[desired_order,, drop=FALSE]
+# 
+# # Create ranking metric (e.g., variance across groups) and gene_list
+# gene_list <- apply(expr_avg, 1, var)
+# names(gene_list) <- rownames(expr_avg)
+# gene_list <- gene_list[!is.na(gene_list) & !duplicated(names(gene_list))]
+# gene_list <- sort(gene_list, decreasing = TRUE)
+# 
+# # Get Reactome pathways from msigdbr (subcategory: CP:REACTOME)
+# reactome_pathways <- msigdbr(species = "Homo sapiens", 
+#                              category = "C2", 
+#                              subcategory = "CP:REACTOME") %>%
+#                     dplyr::select(gs_name, gene_symbol) %>%
+#                     dplyr::distinct()
+# 
+# # Filter for Notch and Hippo signaling pathways by keywords (case-insensitive)
+# notch_pathways <- reactome_pathways %>%
+#                   filter(stringr::str_detect(gs_name, regex("Notch", ignore_case = TRUE)))
+# 
+# hippo_pathways <- reactome_pathways %>%
+#                   filter(stringr::str_detect(gs_name, regex("Hippo", ignore_case = TRUE)))
+# fgf_pathways <- reactome_pathways %>%
+#                   filter(stringr::str_detect(gs_name, regex("FGF", ignore_case = TRUE)))
+# 
+# gsea_reactome <- GSEA(geneList = gene_list,
+#                       TERM2GENE = reactome_pathways,
+#                       pvalueCutoff = 0.5,
+#                       minGSSize = 15,
+#                       maxGSSize = 500,
+#                       pAdjustMethod = "BH",
+#                       verbose = TRUE)
+# 
+# gsea_reactome_df <- as.data.frame(gsea_reactome)
+# 
+# # Filter GSEA results for Notch and Hippo pathways
+# notch_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("Notch", ignore_case = TRUE)), ]
+# hippo_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("Hippo", ignore_case = TRUE)), ]
+# fgf_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("FGF", ignore_case = TRUE)), ]
+# # Function create_pathway_heatmap is reused from your pipeline
+# 
+# # Create heatmaps for Notch pathways
+# for(i in seq_len(nrow(notch_gsea))) {
+#     create_pathway_heatmap(notch_gsea[i, ], expr_avg, annotation_col_avg, output_prefix = "heatmap_Reactome_Notch")
+# }
+# 
+# # Create heatmaps for Hippo pathways
+# for(i in seq_len(nrow(hippo_gsea))) {
+#     create_pathway_heatmap(hippo_gsea[i, ], expr_avg, annotation_col_avg, output_prefix = "heatmap_Reactome_Hippo")
+# }
+# 
+# # Create heatmaps for FGF pathways
+# for(i in seq_len(nrow(fgf_gsea))) {
+#   create_pathway_heatmap(fgf_gsea[i, ], expr_avg, annotation_col_avg, output_prefix = "heatmap_Reactome_FGF")
+# }
 
-annotation_col_avg <- data.frame(CellType = colnames(expr_avg))
-rownames(annotation_col_avg) <- colnames(expr_avg)
+# # Save averaged matrix for record
+# fwrite(data.frame(Gene = rownames(expr_avg), expr_avg), 
+#        "expression_matrix_averaged.tsv", sep = "\t", row.names = FALSE)
 
-# Desired order of groups
-desired_order <- c("WT", "YAPKO", "YAP_TAZKO")
+#Visualizing and GSEA
+BiocManager::install(c("pathview", "enrichplot", "DOSE"))
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(DOSE)
+library(enrichplot)
+deg1 <- fread("DE_YAPKO_vs_WT.tsv")
+deg2 <- fread("DE_YAP_TAZKO_vs_WT.tsv")
+deg3 <- fread("DE_YAP_TAZKO_vs_YAPKO.tsv")
+p_threshold <- 0.05
+fc_threshold <- 2
 
-# Reorder columns of averaged expression matrix
-expr_avg <- expr_avg[, desired_order]
+#### Gene Set Enrichment Analysis (GSEA)
+### rank the DEGs by the fold change
+##WT vs YAPKO
+deg1_order_fc <- deg1[order(-logFC)] # rank the genes by logFC in descending order
+logfc1 <- deg1_order_fc$logFC # get logFC
+names(logfc1) <- deg1_order_fc$V1 # make a named vector of logFC
+# GO Analysis
+enrich_go_gsea_WT_YK <- gseGO(geneList = logfc1, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+# save the enrichment table
+enrich_go_gsea_df_WT_YK <- enrich_go_gsea_WT_YK@result
+fwrite(enrich_go_gsea_df_WT_YK, "enrich_go_gsea_df_WT_YK.tsv", sep = "\t")
+#Visualize Top Enriched GO terms
+dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_WT_YK, showCategory = 10, orderBy="GeneRatio")
+ggsave("dotplot_enrich_go_gsea_2_WT_YKv2.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
 
-# Reorder annotation to match
-annotation_col_avg <- annotation_col_avg[desired_order,, drop=FALSE]
 
-# Create ranking metric (e.g., variance across groups) and gene_list
-gene_list <- apply(expr_avg, 1, var)
-names(gene_list) <- rownames(expr_avg)
-gene_list <- gene_list[!is.na(gene_list) & !duplicated(names(gene_list))]
-gene_list <- sort(gene_list, decreasing = TRUE)
+##WT vs YAP/TAZKO
+deg2_order_fc <- deg2[order(-logFC)] # rank the genes by logFC in descending order
+logfc2 <- deg2_order_fc$logFC # get logFC
+names(logfc2) <- deg2_order_fc$V1 # make a named vector of logFC
+# GO Analysis
+enrich_go_gsea_WT_YTK <- gseGO(geneList = logfc2, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+# save the enrichment table
+enrich_go_gsea_df_WT_YTK <- enrich_go_gsea_WT_YTK@result
+fwrite(enrich_go_gsea_df_WT_YTK, "enrich_go_gsea_df_WT_YTK.tsv", sep = "\t")
+#Visualize Top Enriched GO terms
+dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_WT_YTK, showCategory = 10, orderBy="GeneRatio")
+ggsave("dotplot_enrich_go_gsea_2_WT_YTKv2.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
 
-# Get Reactome pathways from msigdbr (subcategory: CP:REACTOME)
-reactome_pathways <- msigdbr(species = "Homo sapiens", 
-                             category = "C2", 
-                             subcategory = "CP:REACTOME") %>%
-                    dplyr::select(gs_name, gene_symbol) %>%
-                    dplyr::distinct()
-
-# Filter for Notch and Hippo signaling pathways by keywords (case-insensitive)
-notch_pathways <- reactome_pathways %>%
-                  filter(stringr::str_detect(gs_name, regex("Notch", ignore_case = TRUE)))
-
-hippo_pathways <- reactome_pathways %>%
-                  filter(stringr::str_detect(gs_name, regex("Hippo", ignore_case = TRUE)))
-fgf_pathways <- reactome_pathways %>%
-                  filter(stringr::str_detect(gs_name, regex("FGF", ignore_case = TRUE)))
-
-gsea_reactome <- GSEA(geneList = gene_list,
-                      TERM2GENE = reactome_pathways,
-                      pvalueCutoff = 0.5,
-                      minGSSize = 15,
-                      maxGSSize = 500,
-                      pAdjustMethod = "BH",
-                      verbose = TRUE)
-
-gsea_reactome_df <- as.data.frame(gsea_reactome)
-
-# Filter GSEA results for Notch and Hippo pathways
-notch_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("Notch", ignore_case = TRUE)), ]
-hippo_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("Hippo", ignore_case = TRUE)), ]
-fgf_gsea <- gsea_reactome_df[stringr::str_detect(gsea_reactome_df$Description, regex("FGF", ignore_case = TRUE)), ]
-# Function create_pathway_heatmap is reused from your pipeline
-
-# Create heatmaps for Notch pathways
-for(i in seq_len(nrow(notch_gsea))) {
-    create_pathway_heatmap(notch_gsea[i, ], expr_avg, annotation_col_avg, output_prefix = "heatmap_Reactome_Notch")
-}
-
-# Create heatmaps for Hippo pathways
-for(i in seq_len(nrow(hippo_gsea))) {
-    create_pathway_heatmap(hippo_gsea[i, ], expr_avg, annotation_col_avg, output_prefix = "heatmap_Reactome_Hippo")
-}
-
-# Create heatmaps for FGF pathways
-for(i in seq_len(nrow(fgf_gsea))) {
-  create_pathway_heatmap(fgf_gsea[i, ], expr_avg, annotation_col_avg, output_prefix = "heatmap_Reactome_FGF")
-}
-
-# Save averaged matrix for record
-fwrite(data.frame(Gene = rownames(expr_avg), expr_avg), 
-       "expression_matrix_averaged.tsv", sep = "\t", row.names = FALSE)
+##YAPKO vs YAP/TAZKO
+deg3_order_fc <- deg3[order(-logFC)] # rank the genes by logFC in descending order
+logfc3 <- deg3_order_fc$logFC # get logFC
+names(logfc3) <- deg3_order_fc$V1 # make a named vector of logFC
+# GO Analysis
+enrich_go_gsea_YK_YTK <- gseGO(geneList = logfc3, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+# save the enrichment table
+enrich_go_gsea_df_YK_YTK <- enrich_go_gsea_YK_YTK@result
+fwrite(enrich_go_gsea_df_YK_YTK, "enrich_go_gsea_df_YK_YTK.tsv", sep = "\t")
+#Visualize Top Enriched GO terms
+dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_YK_YTK, showCategory = 10, orderBy="GeneRatio")
+ggsave("dotplot_enrich_go_gsea_2_YK_YTv2K.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
 
 # Prepare Differential Expression for GSEA
 # Read differential expression results (example for YAPKO vs WT)
