@@ -7,9 +7,9 @@ BiocManager::install(c("sva", "edgeR", "limma", "Biobase", "biomaRt",
 install.packages(c("data.table", "readxl", "stringr", "ggplot2", "ggrepel", 
                    "ggfortify", "ggprism", "pheatmap", "VennDiagram", 
                    "corrplot", "Hmisc", "stats", "tidyverse"))
-# install.packages("remotes")
-# library(remotes)
-# remotes::install_github("YuLab-SMU/clusterProfiler")
+install.packages("remotes")
+library(remotes)
+remotes::install_github("YuLab-SMU/clusterProfiler", force = TRUE)
 library(data.table)
 library(limma)
 library(edgeR)
@@ -18,6 +18,7 @@ library(ggrepel)
 library(ggfortify)
 library(stats)
 library(sva)
+
 setwd("C:/users/mvsan/code/YAP_TAZ_bulkRNAseq/RNAseq/Rep analysis/Pairwise/Pair_3reps")
 
 ##DATA CLEANING
@@ -238,9 +239,9 @@ rank_genes_entrez <- function(df){
 }
 
 # Prepare ranked gene lists for each contrast (replace with your Entrez-mapped data frames)
-rank_YAPKOvsWT <- rank_genes_entrez(tT_YAPKOvsWT)
-rank_YAP_TAZKOvsWT <- rank_genes_entrez(tT_YAP_TAZKOvsWT)
-rank_YAP_TAZKOvsYAPKO <- rank_genes_entrez(tT_YAP_TAZKOvsYAPKO)
+rank_keggYAPKOvsWT <- rank_genes_entrez(tT_YAPKOvsWT)
+rank_keggYAP_TAZKOvsWT <- rank_genes_entrez(tT_YAP_TAZKOvsWT)
+rank_keggYAP_TAZKOvsYAPKO <- rank_genes_entrez(tT_YAP_TAZKOvsYAPKO)
 
 # Run pairwise GSEA KEGG analysis for each contrast
 gsea_kegg_go <- function(ranks, organism = "hsa"){
@@ -261,7 +262,20 @@ ranks <- tT_YAPKOvsWT$logFC[valid]
 names(ranks) <- as.character(tT_YAPKOvsWT$EntrezID[valid])
 ranks <- sort(ranks, decreasing = TRUE)
 kk <- enrichKEGG(gene = names(ranks), organism = "hsa")
-summary(kk)
+search_kegg_organism('Homo sapiens', by='scientific_name')
+bitr_kegg(genes, fromType = "kegg", toType = "ncbi-geneid", organism = "hsa")
+
+# Optional: convert gene symbols to Entrez IDs
+gene <- bitr(gene_symbols, fromType = "SYMBOL",
+             toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+# Use internal KEGG data to avoid online fetch issues
+ekegg <- enrichKEGG(gene         = gene$ENTREZID,
+                    organism     = "hsa",
+                    use_internal_data = TRUE)
+
+
+
 gsea_YAPKOvsWT_kegg <- gseKEGG(geneList = ranks, organism = "hsa", keyType = "ncbi-geneid",
                                pvalueCutoff = 0.05, minGSSize = 10, maxGSSize = 500)
 
