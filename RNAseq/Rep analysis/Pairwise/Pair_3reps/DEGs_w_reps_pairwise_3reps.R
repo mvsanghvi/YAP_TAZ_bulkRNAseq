@@ -7,6 +7,9 @@ BiocManager::install(c("sva", "edgeR", "limma", "Biobase", "biomaRt",
 install.packages(c("data.table", "readxl", "stringr", "ggplot2", "ggrepel", 
                    "ggfortify", "ggprism", "pheatmap", "VennDiagram", 
                    "corrplot", "Hmisc", "stats", "tidyverse"))
+# install.packages("remotes")
+# library(remotes)
+# remotes::install_github("YuLab-SMU/clusterProfiler")
 library(data.table)
 library(limma)
 library(edgeR)
@@ -131,20 +134,161 @@ fc_threshold <- 2
 
 #### Gene Set Enrichment Analysis (GSEA)
 ### rank the DEGs by the fold change
-##WT vs YAPKO
-deg1_order_fc <- deg1[order(-logFC)] # rank the genes by logFC in descending order
-logfc1 <- deg1_order_fc$logFC # get logFC
-names(logfc1) <- deg1_order_fc$V1 # make a named vector of logFC
-# GO Analysis
-enrich_go_gsea_WT_YK <- gseGO(geneList = logfc1, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
-# save the enrichment table
-enrich_go_gsea_df_WT_YK <- enrich_go_gsea_WT_YK@result
-fwrite(enrich_go_gsea_df_WT_YK, "enrich_go_gsea_df_WT_YK.tsv", sep = "\t")
-#Visualize Top Enriched GO terms
-dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_WT_YK, showCategory = 10, orderBy="GeneRatio")
-ggsave("dotplot_enrich_go_gsea_2_WT_YK.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
-#KEGG Analysis
-#enrich_kegg_gsea <- gseKEGG(geneList = logfc, organism = "hsa")
+# ##WT vs YAPKO
+# deg1_order_fc <- deg1[order(-logFC)] # rank the genes by logFC in descending order
+# logfc1 <- deg1_order_fc$logFC # get logFC
+# names(logfc1) <- deg1_order_fc$V1 # make a named vector of logFC
+# # GO Analysis
+# enrich_go_gsea_WT_YK <- gseGO(geneList = logfc1, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+# # save the enrichment table
+# enrich_go_gsea_df_WT_YK <- enrich_go_gsea_WT_YK@result
+# fwrite(enrich_go_gsea_df_WT_YK, "enrich_go_gsea_df_WT_YK.tsv", sep = "\t")
+# #Visualize Top Enriched GO terms
+# dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_WT_YK, showCategory = 10, orderBy="GeneRatio")
+# ggsave("dotplot_enrich_go_gsea_2_WT_YKv2.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
+# #KEGG Analysis
+# #enrich_kegg_gsea <- gseKEGG(geneList = logfc, organism = "hsa")
+# ##WT vs YAP/TAZKO
+# deg2_order_fc <- deg2[order(-logFC)] # rank the genes by logFC in descending order
+# logfc2 <- deg2_order_fc$logFC # get logFC
+# names(logfc2) <- deg2_order_fc$V1 # make a named vector of logFC
+# # GO Analysis
+# enrich_go_gsea_WT_YTK <- gseGO(geneList = logfc2, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+# # save the enrichment table
+# enrich_go_gsea_df_WT_YTK <- enrich_go_gsea_WT_YTK@result
+# fwrite(enrich_go_gsea_df_WT_YTK, "enrich_go_gsea_df_WT_YTK.tsv", sep = "\t")
+# #Visualize Top Enriched GO terms
+# dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_WT_YTK, showCategory = 10, orderBy="GeneRatio")
+# ggsave("dotplot_enrich_go_gsea_2_WT_YTKv2.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
+# 
+# ##YAPKO vs YAP/TAZKO
+# deg3_order_fc <- deg3[order(-logFC)] # rank the genes by logFC in descending order
+# logfc3 <- deg3_order_fc$logFC # get logFC
+# names(logfc3) <- deg3_order_fc$V1 # make a named vector of logFC
+# # GO Analysis
+# enrich_go_gsea_YK_YTK <- gseGO(geneList = logfc3, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+# # save the enrichment table
+# enrich_go_gsea_df_YK_YTK <- enrich_go_gsea_YK_YTK@result
+# fwrite(enrich_go_gsea_df_YK_YTK, "enrich_go_gsea_df_YK_YTK.tsv", sep = "\t")
+# #Visualize Top Enriched GO terms
+# dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_YK_YTK, showCategory = 10, orderBy="GeneRatio")
+# ggsave("dotplot_enrich_go_gsea_2_YK_YTKv2.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
+
+# Simplified Pairwise GSEA GO Analyses
+# 1. Prepare ranked gene lists based on logFC and p-value
+rank_genes <- function(df){
+  df <- df[!is.na(df$logFC) & !is.na(df$P.Value), ]
+  ranks <- df$logFC
+  names(ranks) <- rownames(df)
+  ranks <- sort(ranks, decreasing = TRUE)
+  return(ranks)
+}
+
+rank_YAPKOvsWT <- rank_genes(tT_YAPKOvsWT)
+rank_YAP_TAZKOvsWT <- rank_genes(tT_YAP_TAZKOvsWT)
+rank_YAP_TAZKOvsYAPKO <- rank_genes(tT_YAP_TAZKOvsYAPKO)
+
+# 2. Run GSEA GO for BP, MF, and CC combined
+gsea_go <- function(ranks, OrgDb, ont = "ALL"){
+  gseGO(geneList = ranks,
+        OrgDb = OrgDb,
+        keyType = "SYMBOL",
+        ont = ont,
+        minGSSize = 10,
+        maxGSSize = 500,
+        pvalueCutoff = 0.05,
+        verbose = TRUE)
+}
+
+# Run combined ontology GSEA for each comparison (no separate MF or CC calls needed)
+gsea_YAPKOvsWT <- gsea_go(rank_YAPKOvsWT, org.Hs.eg.db)
+gsea_YAP_TAZKOvsWT <- gsea_go(rank_YAP_TAZKOvsWT, org.Hs.eg.db)
+gsea_YAP_TAZKOvsYAPKO <- gsea_go(rank_YAP_TAZKOvsYAPKO, org.Hs.eg.db)
+
+# Save combined results
+save(gsea_YAPKOvsWT, gsea_YAP_TAZKOvsWT, gsea_YAP_TAZKOvsYAPKO,
+     file = "GSEA_GO_ALL_ontologies_results.RData")
+
+# Visualize: You can still use dotplot and gseaplot2 on these combined objects
+png("GSEA_YAPKOvsWT_GO_ALL.png", width=10, height=8, units="in", res=300)
+gseaplot2(gsea_YAPKOvsWT, geneSetID=1, title="YAPKO vs WT - GO ALL")
+dev.off()
+
+png("Dotplot_YAPKOvsWT_GO_ALL.png", width=10, height=8, units="in", res=300)
+dotplot(gsea_YAPKOvsWT, showCategory=15, title="YAPKO vs WT - GO ALL")
+dev.off()
+
+png("Dotplot_YAP_TAZKOvsWT_GO_ALL.png", width=10, height=8, units="in", res=300)
+dotplot(gsea_YAP_TAZKOvsWT, showCategory=15, title="YAP_TAZKO vs WT - GO ALL")
+dev.off()
+
+png("Dotplot_YAP_TAZKOvsYAPKO_GO_ALL.png", width=10, height=8, units="in", res=300)
+dotplot(gsea_YAP_TAZKOvsYAPKO, showCategory=15, title="YAP_TAZKO vs YAPKO - GO ALL")
+dev.off()
+
+# Helper function to prepare ranked gene lists (Entrez IDs required)
+rank_genes_entrez <- function(df){
+  df <- df[!is.na(df$logFC) & !is.na(df$P.Value), ]
+  # Assuming you have a mapping from gene symbols to Entrez already done (here `entrez_ids`)
+  # For demonstration, assume rownames(df) are Entrez IDs or have been converted
+  ranks <- df$logFC
+  names(ranks) <- rownames(df)   # Make sure these are Entrez IDs for KEGG
+  ranks <- sort(ranks, decreasing = TRUE)
+  return(ranks)
+}
+
+# Prepare ranked gene lists for each contrast (replace with your Entrez-mapped data frames)
+rank_YAPKOvsWT <- rank_genes_entrez(tT_YAPKOvsWT)
+rank_YAP_TAZKOvsWT <- rank_genes_entrez(tT_YAP_TAZKOvsWT)
+rank_YAP_TAZKOvsYAPKO <- rank_genes_entrez(tT_YAP_TAZKOvsYAPKO)
+
+# Run pairwise GSEA KEGG analysis for each contrast
+gsea_kegg_go <- function(ranks, organism = "hsa"){
+  gseKEGG(geneList = ranks,
+          organism = organism,
+          minGSSize = 10,
+          maxGSSize = 500,
+          pvalueCutoff = 0.05,
+          verbose = TRUE)
+}
+
+ranks <- tT_YAPKOvsWT$logFC
+names(ranks) <- tT_YAPKOvsWT$EntrezID  # NOT SYMBOLS
+ranks <- sort(ranks, decreasing = TRUE)
+names(ranks) <- as.character(tT_YAPKOvsWT$EntrezID)
+valid <- !is.na(tT_YAPKOvsWT$EntrezID)
+ranks <- tT_YAPKOvsWT$logFC[valid]
+names(ranks) <- as.character(tT_YAPKOvsWT$EntrezID[valid])
+ranks <- sort(ranks, decreasing = TRUE)
+kk <- enrichKEGG(gene = names(ranks), organism = "hsa")
+summary(kk)
+gsea_YAPKOvsWT_kegg <- gseKEGG(geneList = ranks, organism = "hsa", keyType = "ncbi-geneid",
+                               pvalueCutoff = 0.05, minGSSize = 10, maxGSSize = 500)
+
+
+gsea_YAPKOvsWT_kegg <- gsea_kegg_go(rank_YAPKOvsWT)
+gsea_YAP_TAZKOvsWT_kegg <- gsea_kegg_go(rank_YAP_TAZKOvsWT)
+gsea_YAP_TAZKOvsYAPKO_kegg <- gsea_kegg_go(rank_YAP_TAZKOvsYAPKO)
+
+# Save results objects for later
+save(gsea_YAPKOvsWT_kegg, gsea_YAP_TAZKOvsWT_kegg, gsea_YAP_TAZKOvsYAPKO_kegg,
+     file = "GSEA_KEGG_pairwise_results.RData")
+
+library(enrichplot)
+
+# Save dotplots to individual PNG files
+png("Dotplot_YAPKOvsWT_KEGG.png", width=8, height=6, units="in", res=300)
+dotplot(gsea_YAPKOvsWT_kegg, showCategory=15, title="YAPKO vs WT - KEGG")
+dev.off()
+
+png("Dotplot_YAP_TAZKOvsWT_KEGG.png", width=8, height=6, units="in", res=300)
+dotplot(gsea_YAP_TAZKOvsWT_kegg, showCategory=15, title="YAP_TAZKO vs WT - KEGG")
+dev.off()
+
+png("Dotplot_YAP_TAZKOvsYAPKO_KEGG.png", width=8, height=6, units="in", res=300)
+dotplot(gsea_YAP_TAZKOvsYAPKO_kegg, showCategory=15, title="YAP_TAZKO vs YAPKO - KEGG")
+dev.off()
+
 
 #### FIX THE PATHWAY LIST AND TRY DIFFERENT DATABASES ####
 
@@ -360,29 +504,3 @@ p53_data <- gsea_hallmark_df[gsea_hallmark_df$Description == "HALLMARK_P53_PATHW
 create_pathway_heatmap(p53_data, expr_matrix = expr_matrix, 
                                annotation_col = annotation_col, 
                                output_prefix = "heatmap_ordered_P53")
-
-##WT vs YAP/TAZKO
-deg2_order_fc <- deg2[order(-logFC)] # rank the genes by logFC in descending order
-logfc2 <- deg2_order_fc$logFC # get logFC
-names(logfc2) <- deg2_order_fc$V1 # make a named vector of logFC
-# GO Analysis
-enrich_go_gsea_WT_YTK <- gseGO(geneList = logfc2, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
-# save the enrichment table
-enrich_go_gsea_df_WT_YTK <- enrich_go_gsea_WT_YTK@result
-fwrite(enrich_go_gsea_df_WT_YTK, "enrich_go_gsea_df_WT_YTK.tsv", sep = "\t")
-#Visualize Top Enriched GO terms
-dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_WT_YTK, showCategory = 10, orderBy="GeneRatio")
-ggsave("dotplot_enrich_go_gsea_2_WT_YTK.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
-
-##YAPKO vs YAP/TAZKO
-deg3_order_fc <- deg3[order(-logFC)] # rank the genes by logFC in descending order
-logfc3 <- deg3_order_fc$logFC # get logFC
-names(logfc3) <- deg3_order_fc$V1 # make a named vector of logFC
-# GO Analysis
-enrich_go_gsea_YK_YTK <- gseGO(geneList = logfc3, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
-# save the enrichment table
-enrich_go_gsea_df_YK_YTK <- enrich_go_gsea_YK_YTK@result
-fwrite(enrich_go_gsea_df_YK_YTK, "enrich_go_gsea_df_YK_YTK.tsv", sep = "\t")
-#Visualize Top Enriched GO terms
-dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_YK_YTK, showCategory = 10, orderBy="GeneRatio")
-ggsave("dotplot_enrich_go_gsea_2_YK_YTK.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
