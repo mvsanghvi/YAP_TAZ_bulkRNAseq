@@ -7,9 +7,9 @@ BiocManager::install(c("sva", "edgeR", "limma", "Biobase", "biomaRt",
 install.packages(c("data.table", "readxl", "stringr", "ggplot2", "ggrepel", 
                    "ggfortify", "ggprism", "pheatmap", "VennDiagram", 
                    "corrplot", "Hmisc", "stats", "tidyverse"))
-install.packages("remotes")
-library(remotes)
-remotes::install_github("YuLab-SMU/clusterProfiler", force = TRUE)
+# install.packages("remotes")
+# library(remotes)
+# remotes::install_github("YuLab-SMU/clusterProfiler", force = TRUE)
 library(data.table)
 library(limma)
 library(edgeR)
@@ -227,81 +227,191 @@ png("Dotplot_YAP_TAZKOvsYAPKO_GO_ALL.png", width=10, height=8, units="in", res=3
 dotplot(gsea_YAP_TAZKOvsYAPKO, showCategory=15, title="YAP_TAZKO vs YAPKO - GO ALL")
 dev.off()
 
-# Helper function to prepare ranked gene lists (Entrez IDs required)
-rank_genes_entrez <- function(df){
-  df <- df[!is.na(df$logFC) & !is.na(df$P.Value), ]
-  # Assuming you have a mapping from gene symbols to Entrez already done (here `entrez_ids`)
-  # For demonstration, assume rownames(df) are Entrez IDs or have been converted
-  ranks <- df$logFC
-  names(ranks) <- rownames(df)   # Make sure these are Entrez IDs for KEGG
-  ranks <- sort(ranks, decreasing = TRUE)
-  return(ranks)
-}
+##KEGG GSEA
+# Convert gene IDs for gseKEGG function (will lose some genes here because not all IDs will be converted)
+organism= org.Hs.eg.db
+library(organism, character.only = TRUE)
+nm1 = rownames(tT_YAPKOvsWT)
+nm2 = rownames(tT_YAP_TAZKOvsWT)
+nm3 = rownames(tT_YAP_TAZKOvsYAPKO)
 
-# Prepare ranked gene lists for each contrast (replace with your Entrez-mapped data frames)
-rank_keggYAPKOvsWT <- rank_genes_entrez(tT_YAPKOvsWT)
-rank_keggYAP_TAZKOvsWT <- rank_genes_entrez(tT_YAP_TAZKOvsWT)
-rank_keggYAP_TAZKOvsYAPKO <- rank_genes_entrez(tT_YAP_TAZKOvsYAPKO)
+# Convert our gene ids to ensembl ids
+symbols1 <- mapIds(org.Hs.eg.db, keys = nm1, keytype = "SYMBOL", column="ENSEMBL")
+symbols2 <- mapIds(org.Hs.eg.db, keys = nm2, keytype = "SYMBOL", column="ENSEMBL")
+symbols3 <- mapIds(org.Hs.eg.db, keys = nm3, keytype = "SYMBOL", column="ENSEMBL")
 
-# Run pairwise GSEA KEGG analysis for each contrast
-gsea_kegg_go <- function(ranks, organism = "hsa"){
-  gseKEGG(geneList = ranks,
-          organism = organism,
-          minGSSize = 10,
-          maxGSSize = 500,
-          pvalueCutoff = 0.05,
-          verbose = TRUE)
-}
+# Keep the original symbol if conversion resulted in NA, otherwise keep the Ensembl ID
+final_ids1 <- ifelse(is.na(symbols), nm1, symbols)
+final_ids2 <- ifelse(is.na(symbols), nm2, symbols)
+final_ids3 <- ifelse(is.na(symbols), nm3, symbols)
 
-ranks <- tT_YAPKOvsWT$logFC
-names(ranks) <- tT_YAPKOvsWT$EntrezID  # NOT SYMBOLS
-ranks <- sort(ranks, decreasing = TRUE)
-names(ranks) <- as.character(tT_YAPKOvsWT$EntrezID)
-valid <- !is.na(tT_YAPKOvsWT$EntrezID)
-ranks <- tT_YAPKOvsWT$logFC[valid]
-names(ranks) <- as.character(tT_YAPKOvsWT$EntrezID[valid])
-ranks <- sort(ranks, decreasing = TRUE)
-kk <- enrichKEGG(gene = names(ranks), organism = "hsa")
-search_kegg_organism('Homo sapiens', by='scientific_name')
-bitr_kegg(genes, fromType = "kegg", toType = "ncbi-geneid", organism = "hsa")
+# Add the Ensembl IDs to the original dataframe (assuming 'X' is the column containing gene symbols)
+tT_YAPKOvsWT$Ensembl_ID <- final_ids1
+tT_YAP_TAZKOvsWT$Ensembl_ID <- final_ids2
+tT_YAP_TAZKOvsYAPKO$Ensembl_ID <- final_ids3
 
-# Optional: convert gene symbols to Entrez IDs
-gene <- bitr(gene_symbols, fromType = "SYMBOL",
-             toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+ids1<-bitr(final_ids1, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb=organism)
+ids2<-bitr(final_ids2, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb=organism)
+ids3<-bitr(final_ids3, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb=organism)
+# remove duplicate IDS (here I use "ENSEMBL", but it should be whatever was selected as keyType)
+dedup_ids1 = ids1[!duplicated(ids1[c("ENSEMBL")]),]
+dedup_ids2 = ids2[!duplicated(ids2[c("ENSEMBL")]),]
+dedup_ids3 = ids3[!duplicated(ids3[c("ENSEMBL")]),]
 
-# Use internal KEGG data to avoid online fetch issues
-ekegg <- enrichKEGG(gene         = gene$ENTREZID,
-                    organism     = "hsa",
-                    use_internal_data = TRUE)
+# Create a new dataframe df2 which has only the genes which were successfully mapped using the bitr function above
+df1 <- tT_YAPKOvsWT[tT_YAPKOvsWT$Ensembl_ID %in% dedup_ids1$ENSEMBL, ]
+df2 <- tT_YAP_TAZKOvsWT[tT_YAP_TAZKOvsWT$Ensembl_ID %in% dedup_ids2$ENSEMBL, ]
+df3 <- tT_YAP_TAZKOvsYAPKO[tT_YAP_TAZKOvsYAPKO$Ensembl_ID %in% dedup_ids3$ENSEMBL, ]
+
+## Create a new column in df2 with the corresponding ENTREZ IDs
+# n_occur1 <- data.frame(table(df1$Ensembl_ID))
+# n_occur1[n_occur1$Freq>1,]
+dedup_df1 = df1[!duplicated(df1[c("Ensembl_ID")]),]
+dedup_df1$Entrez_ID = dedup_ids1$ENTREZID
+
+dedup_df2 = df2[!duplicated(df2[c("Ensembl_ID")]),]
+dedup_df2$Entrez_ID = dedup_ids2$ENTREZID
+
+dedup_df3 = df3[!duplicated(df3[c("Ensembl_ID")]),]
+dedup_df3$Entrez_ID = dedup_ids3$ENTREZID
+# Create a vector of the gene universe
+kegg_gene_list1 <- dedup_df1$logFC
+kegg_gene_list2 <- dedup_df2$logFC
+kegg_gene_list3 <- dedup_df3$logFC
+
+# Name vector with ENTREZ ids
+names(kegg_gene_list1) <- dedup_df1$Entrez_ID
+names(kegg_gene_list2) <- dedup_df2$Entrez_ID
+names(kegg_gene_list3) <- dedup_df3$Entrez_ID
+
+# omit any NA values 
+kegg_gene_list1<-na.omit(kegg_gene_list1)
+kegg_gene_list2<-na.omit(kegg_gene_list2)
+kegg_gene_list3<-na.omit(kegg_gene_list3)
+
+#Remove duplicates
+duplicated(names(kegg_gene_list1))
+sum(duplicated(names(kegg_gene_list1)))
+unique_kegg_gene_list1 <- kegg_gene_list1[!duplicated(names(kegg_gene_list1))]
+
+duplicated(names(kegg_gene_list2))
+sum(duplicated(names(kegg_gene_list2)))
+unique_kegg_gene_list2 <- kegg_gene_list2[!duplicated(names(kegg_gene_list2))]
+
+duplicated(names(kegg_gene_list3))
+sum(duplicated(names(kegg_gene_list3)))
+unique_kegg_gene_list3 <- kegg_gene_list3[!duplicated(names(kegg_gene_list3))]
 
 
+# sort the list in decreasing order (required for clusterProfiler)
+kegg_gene_list1 = sort(unique_kegg_gene_list1, decreasing = TRUE)
+kegg_gene_list2 = sort(unique_kegg_gene_list2, decreasing = TRUE)
+kegg_gene_list3 = sort(unique_kegg_gene_list3, decreasing = TRUE)
 
-gsea_YAPKOvsWT_kegg <- gseKEGG(geneList = ranks, organism = "hsa", keyType = "ncbi-geneid",
-                               pvalueCutoff = 0.05, minGSSize = 10, maxGSSize = 500)
+kegg_organism = "hsa"
+kk1 <-  gseKEGG(geneList     = kegg_gene_list1,
+               organism     = kegg_organism,
+               nPerm        = 10000,
+               minGSSize    = 3,
+               maxGSSize    = 800,
+               pvalueCutoff = 0.05,
+               pAdjustMethod = "none",
+               keyType       = "ncbi-geneid")
+kk2 <-  gseKEGG(geneList     = kegg_gene_list2,
+                organism     = kegg_organism,
+                nPerm        = 10000,
+                minGSSize    = 3,
+                maxGSSize    = 800,
+                pvalueCutoff = 0.05,
+                pAdjustMethod = "none",
+                keyType       = "ncbi-geneid")
+kk3 <-  gseKEGG(geneList     = kegg_gene_list3,
+                organism     = kegg_organism,
+                nPerm        = 10000,
+                minGSSize    = 3,
+                maxGSSize    = 800,
+                pvalueCutoff = 0.05,
+                pAdjustMethod = "none",
+                keyType       = "ncbi-geneid")
+dotplot(kk1, showCategory = 10, title = "Enriched Pathways" , split=".sign") + facet_grid(.~.sign)
+dotplot(kk2, showCategory = 10, title = "Enriched Pathways" , split=".sign") + facet_grid(.~.sign)
+dotplot(kk3, showCategory = 10, title = "Enriched Pathways" , split=".sign") + facet_grid(.~.sign)
 
-
-gsea_YAPKOvsWT_kegg <- gsea_kegg_go(rank_YAPKOvsWT)
-gsea_YAP_TAZKOvsWT_kegg <- gsea_kegg_go(rank_YAP_TAZKOvsWT)
-gsea_YAP_TAZKOvsYAPKO_kegg <- gsea_kegg_go(rank_YAP_TAZKOvsYAPKO)
-
-# Save results objects for later
-save(gsea_YAPKOvsWT_kegg, gsea_YAP_TAZKOvsWT_kegg, gsea_YAP_TAZKOvsYAPKO_kegg,
-     file = "GSEA_KEGG_pairwise_results.RData")
-
-library(enrichplot)
-
-# Save dotplots to individual PNG files
-png("Dotplot_YAPKOvsWT_KEGG.png", width=8, height=6, units="in", res=300)
-dotplot(gsea_YAPKOvsWT_kegg, showCategory=15, title="YAPKO vs WT - KEGG")
-dev.off()
-
-png("Dotplot_YAP_TAZKOvsWT_KEGG.png", width=8, height=6, units="in", res=300)
-dotplot(gsea_YAP_TAZKOvsWT_kegg, showCategory=15, title="YAP_TAZKO vs WT - KEGG")
-dev.off()
-
-png("Dotplot_YAP_TAZKOvsYAPKO_KEGG.png", width=8, height=6, units="in", res=300)
-dotplot(gsea_YAP_TAZKOvsYAPKO_kegg, showCategory=15, title="YAP_TAZKO vs YAPKO - KEGG")
-dev.off()
+# # Helper function to prepare ranked gene lists (Entrez IDs required)
+# rank_genes_entrez <- function(df){
+#   df <- df[!is.na(df$logFC) & !is.na(df$P.Value), ]
+#   # Assuming you have a mapping from gene symbols to Entrez already done (here `entrez_ids`)
+#   # For demonstration, assume rownames(df) are Entrez IDs or have been converted
+#   ranks <- df$logFC
+#   names(ranks) <- rownames(df)   # Make sure these are Entrez IDs for KEGG
+#   ranks <- sort(ranks, decreasing = TRUE)
+#   return(ranks)
+# }
+# 
+# # Prepare ranked gene lists for each contrast (replace with your Entrez-mapped data frames)
+# rank_keggYAPKOvsWT <- rank_genes_entrez(tT_YAPKOvsWT)
+# rank_keggYAP_TAZKOvsWT <- rank_genes_entrez(tT_YAP_TAZKOvsWT)
+# rank_keggYAP_TAZKOvsYAPKO <- rank_genes_entrez(tT_YAP_TAZKOvsYAPKO)
+# 
+# # Run pairwise GSEA KEGG analysis for each contrast
+# gsea_kegg_go <- function(ranks, organism = "hsa"){
+#   gseKEGG(geneList = ranks,
+#           organism = organism,
+#           minGSSize = 10,
+#           maxGSSize = 500,
+#           pvalueCutoff = 0.05,
+#           verbose = TRUE)
+# }
+# 
+# ranks <- tT_YAPKOvsWT$logFC
+# names(ranks) <- tT_YAPKOvsWT$EntrezID  # NOT SYMBOLS
+# ranks <- sort(ranks, decreasing = TRUE)
+# names(ranks) <- as.character(tT_YAPKOvsWT$EntrezID)
+# valid <- !is.na(tT_YAPKOvsWT$EntrezID)
+# ranks <- tT_YAPKOvsWT$logFC[valid]
+# names(ranks) <- as.character(tT_YAPKOvsWT$EntrezID[valid])
+# ranks <- sort(ranks, decreasing = TRUE)
+# kk <- enrichKEGG(gene = names(ranks), organism = "hsa")
+# search_kegg_organism('Homo sapiens', by='scientific_name')
+# bitr_kegg(genes, fromType = "kegg", toType = "ncbi-geneid", organism = "hsa")
+# 
+# # Optional: convert gene symbols to Entrez IDs
+# gene <- bitr(gene_symbols, fromType = "SYMBOL",
+#              toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+# 
+# # Use internal KEGG data to avoid online fetch issues
+# ekegg <- enrichKEGG(gene         = gene$ENTREZID,
+#                     organism     = "hsa",
+#                     use_internal_data = TRUE)
+# 
+# 
+# 
+# gsea_YAPKOvsWT_kegg <- gseKEGG(geneList = ranks, organism = "hsa", keyType = "ncbi-geneid",
+#                                pvalueCutoff = 0.05, minGSSize = 10, maxGSSize = 500)
+# 
+# 
+# gsea_YAPKOvsWT_kegg <- gsea_kegg_go(rank_YAPKOvsWT)
+# gsea_YAP_TAZKOvsWT_kegg <- gsea_kegg_go(rank_YAP_TAZKOvsWT)
+# gsea_YAP_TAZKOvsYAPKO_kegg <- gsea_kegg_go(rank_YAP_TAZKOvsYAPKO)
+# 
+# # Save results objects for later
+# save(gsea_YAPKOvsWT_kegg, gsea_YAP_TAZKOvsWT_kegg, gsea_YAP_TAZKOvsYAPKO_kegg,
+#      file = "GSEA_KEGG_pairwise_results.RData")
+# 
+# library(enrichplot)
+# 
+# # Save dotplots to individual PNG files
+# png("Dotplot_YAPKOvsWT_KEGG.png", width=8, height=6, units="in", res=300)
+# dotplot(gsea_YAPKOvsWT_kegg, showCategory=15, title="YAPKO vs WT - KEGG")
+# dev.off()
+# 
+# png("Dotplot_YAP_TAZKOvsWT_KEGG.png", width=8, height=6, units="in", res=300)
+# dotplot(gsea_YAP_TAZKOvsWT_kegg, showCategory=15, title="YAP_TAZKO vs WT - KEGG")
+# dev.off()
+# 
+# png("Dotplot_YAP_TAZKOvsYAPKO_KEGG.png", width=8, height=6, units="in", res=300)
+# dotplot(gsea_YAP_TAZKOvsYAPKO_kegg, showCategory=15, title="YAP_TAZKO vs YAPKO - KEGG")
+# dev.off()
 
 
 #### FIX THE PATHWAY LIST AND TRY DIFFERENT DATABASES ####
