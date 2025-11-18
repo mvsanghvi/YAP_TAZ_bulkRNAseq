@@ -135,45 +135,44 @@ fc_threshold <- 2
 
 #### Gene Set Enrichment Analysis (GSEA)
 ### rank the DEGs by the fold change
-# ##WT vs YAPKO
-# deg1_order_fc <- deg1[order(-logFC)] # rank the genes by logFC in descending order
-# logfc1 <- deg1_order_fc$logFC # get logFC
-# names(logfc1) <- deg1_order_fc$V1 # make a named vector of logFC
-# # GO Analysis
-# enrich_go_gsea_WT_YK <- gseGO(geneList = logfc1, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
-# # save the enrichment table
-# enrich_go_gsea_df_WT_YK <- enrich_go_gsea_WT_YK@result
-# fwrite(enrich_go_gsea_df_WT_YK, "enrich_go_gsea_df_WT_YK.tsv", sep = "\t")
-# #Visualize Top Enriched GO terms
-# dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_WT_YK, showCategory = 10, orderBy="GeneRatio")
-# ggsave("dotplot_enrich_go_gsea_2_WT_YKv2.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
-# #KEGG Analysis
-# #enrich_kegg_gsea <- gseKEGG(geneList = logfc, organism = "hsa")
-# ##WT vs YAP/TAZKO
-# deg2_order_fc <- deg2[order(-logFC)] # rank the genes by logFC in descending order
-# logfc2 <- deg2_order_fc$logFC # get logFC
-# names(logfc2) <- deg2_order_fc$V1 # make a named vector of logFC
-# # GO Analysis
-# enrich_go_gsea_WT_YTK <- gseGO(geneList = logfc2, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
-# # save the enrichment table
-# enrich_go_gsea_df_WT_YTK <- enrich_go_gsea_WT_YTK@result
-# fwrite(enrich_go_gsea_df_WT_YTK, "enrich_go_gsea_df_WT_YTK.tsv", sep = "\t")
-# #Visualize Top Enriched GO terms
-# dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_WT_YTK, showCategory = 10, orderBy="GeneRatio")
-# ggsave("dotplot_enrich_go_gsea_2_WT_YTKv2.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
-# 
-# ##YAPKO vs YAP/TAZKO
-# deg3_order_fc <- deg3[order(-logFC)] # rank the genes by logFC in descending order
-# logfc3 <- deg3_order_fc$logFC # get logFC
-# names(logfc3) <- deg3_order_fc$V1 # make a named vector of logFC
-# # GO Analysis
-# enrich_go_gsea_YK_YTK <- gseGO(geneList = logfc3, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
-# # save the enrichment table
-# enrich_go_gsea_df_YK_YTK <- enrich_go_gsea_YK_YTK@result
-# fwrite(enrich_go_gsea_df_YK_YTK, "enrich_go_gsea_df_YK_YTK.tsv", sep = "\t")
-# #Visualize Top Enriched GO terms
-# dotplot_enrich_go_gsea <- dotplot(enrich_go_gsea_YK_YTK, showCategory = 10, orderBy="GeneRatio")
-# ggsave("dotplot_enrich_go_gsea_2_YK_YTKv2.png", dotplot_enrich_go_gsea, device = "png", units = "cm", width = 16, height = 18)
+##WT vs YAPKO
+deg1_order_fc <- deg1[order(-logFC)] # rank the genes by logFC in descending order
+logfc1 <- deg1_order_fc$logFC # get logFC
+names(logfc1) <- deg1_order_fc$V1 # make a named vector of logFC
+# GO Analysis
+enrich_go_gsea_WT_YK <- gseGO(geneList = logfc1, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+# save the enrichment table
+enrich_go_gsea_df_WT_YK <- enrich_go_gsea_WT_YK@result
+fwrite(enrich_go_gsea_df_WT_YK, "enrich_go_gsea_df_WT_YK.tsv", sep = "\t")
+#Visualize Top Enriched GO terms
+dotplot_enrich_go_gsea1 <- dotplot(enrich_go_gsea_WT_YK, showCategory = 10, orderBy="GeneRatio", split=".sign") + facet_grid(.~.sign)
+ggsave("dotplot_enrich_go_gsea_2_WT_YK_split.png", dotplot_enrich_go_gsea1, device = "png", units = "cm", width = 20, height = 20)
+# dotplot(dotplot_enrich_go_gsea, showCategory = 10, title = "Enriched Pathways" , split=".sign") + facet_grid(.~.sign)
+##WT vs YAP/TAZKO
+deg2_order_fc <- deg2[order(-logFC)] # rank the genes by logFC in descending order
+logfc2 <- deg2_order_fc$logFC # get logFC
+names(logfc2) <- deg2_order_fc$V1 # make a named vector of logFC
+# GO Analysis
+enrich_go_gsea_WT_YTK <- gseGO(geneList = logfc2, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+# save the enrichment table
+enrich_go_gsea_df_WT_YTK <- enrich_go_gsea_WT_YTK@result
+fwrite(enrich_go_gsea_df_WT_YTK, "enrich_go_gsea_df_WT_YTK.tsv", sep = "\t")
+#Visualize Top Enriched GO terms
+dotplot_enrich_go_gsea2 <- dotplot(enrich_go_gsea_WT_YTK, showCategory = 10, orderBy="GeneRatio", split=".sign") + facet_grid(.~.sign)
+ggsave("dotplot_enrich_go_gsea_2_WT_YTK_split.png", dotplot_enrich_go_gsea2, device = "png", units = "cm", width = 20, height = 20)
+
+##YAPKO vs YAP/TAZKO
+deg3_order_fc <- deg3[order(-logFC)] # rank the genes by logFC in descending order
+logfc3 <- deg3_order_fc$logFC # get logFC
+names(logfc3) <- deg3_order_fc$V1 # make a named vector of logFC
+# GO Analysis
+enrich_go_gsea_YK_YTK <- gseGO(geneList = logfc3, OrgDb = org.Hs.eg.db, ont = "ALL", pvalueCutoff = 0.05, keyType ="SYMBOL", verbose= FALSE)
+# save the enrichment table
+enrich_go_gsea_df_YK_YTK <- enrich_go_gsea_YK_YTK@result
+fwrite(enrich_go_gsea_df_YK_YTK, "enrich_go_gsea_df_YK_YTK.tsv", sep = "\t")
+#Visualize Top Enriched GO terms
+dotplot_enrich_go_gsea3 <- dotplot(enrich_go_gsea_YK_YTK, showCategory = 10, orderBy="GeneRatio", split=".sign") + facet_grid(.~.sign)
+ggsave("dotplot_enrich_go_gsea_2_YK_YTK_split.png", dotplot_enrich_go_gsea3, device = "png", units = "cm", width = 20, height = 20)
 
 # Simplified Pairwise GSEA GO Analyses
 # 1. Prepare ranked gene lists based on logFC and p-value
