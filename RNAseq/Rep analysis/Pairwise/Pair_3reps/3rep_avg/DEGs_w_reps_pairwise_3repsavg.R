@@ -321,26 +321,48 @@ core_pluripotency_genes <- c(
 # Check which are in your data
 core_genes_in_data <- core_pluripotency_genes[core_pluripotency_genes %in% rownames(expr_matrix)]
 
-cat("\n\nCore pluripotency genes found in data:\n")
+cat("Core pluripotency genes found in data:\n")
 print(core_genes_in_data)
 
-# Extract expression
+# Extract expression for these genes
 expr_core_pluripotency <- expr_matrix[rownames(expr_matrix) %in% core_genes_in_data, ]
+# Check your metadata structure
+print(meta)
 
-# Create heatmap for core markers
-pheatmap(expr_core_pluripotency,
+# Average based on CellType from metadata
+expr_averaged <- data.frame(
+  WT = rowMeans(expr_core_pluripotency[, meta$CellType == "WT"]),
+  YAPKO = rowMeans(expr_core_pluripotency[, meta$CellType == "YAPKO"]),
+  YAP_TAZKO = rowMeans(expr_core_pluripotency[, meta$CellType == "YAP_TAZKO"])
+)
+
+# Verify dimensions
+cat("\nAveraged expression matrix dimensions:\n")
+print(dim(expr_averaged))
+cat("Genes:", nrow(expr_averaged), "\n")
+cat("Conditions:", ncol(expr_averaged), "\n")
+
+# Create annotation for the averaged data
+annotation_col_averaged <- data.frame(
+  CellType = c("WT", "YAPKO", "YAP_TAZKO"),
+  row.names = c("WT", "YAPKO", "YAP_TAZKO")
+)
+
+# Create heatmap with averaged data
+pheatmap(expr_averaged,
          scale = "row",
-         annotation_col = annotation_col,
-         cluster_cols = FALSE,
-         cluster_rows = TRUE,
-         gaps_col = c(2, 4),
-         main = "Core Pluripotency Markers",
-         fontsize_row = 10,
-         fontsize_col = 11,
+         annotation_col = annotation_col_averaged,
+         cluster_cols = FALSE,  # Keep the order: WT, YAPKO, YAP_TAZKO
+         cluster_rows = TRUE,   # Cluster genes to show similar patterns
+         main = "Core Pluripotency Markers\n(Averaged Replicates)",
+         fontsize_row = 11,
+         fontsize_col = 12,
          color = colorRampPalette(c("blue", "white", "red"))(100),
          border_color = "grey60",
          show_rownames = TRUE,
-         filename = "heatmap_core_pluripotency_markers.png",
-         width = 8,
+         show_colnames = TRUE,
+         cellwidth = 40,
+         cellheight = 20,
+         filename = "heatmap_pluripotency_averaged.png",
+         width = 6,
          height = 10)
-
