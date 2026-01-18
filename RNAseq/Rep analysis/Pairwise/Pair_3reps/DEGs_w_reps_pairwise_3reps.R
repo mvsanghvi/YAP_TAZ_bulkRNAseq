@@ -554,3 +554,63 @@ dotplot(kk3, showCategory = 15)
 # create_pathway_heatmap(p53_data, expr_matrix = expr_matrix, 
 #                                annotation_col = annotation_col, 
 #                                output_prefix = "heatmap_ordered_P53")
+#### CREATE HEATMAP FOR PLURIPOTENCY GENES ####
+
+library(pheatmap)
+library(msigdbr)
+library(dplyr)
+
+# Setup
+expr_matrix <- dge_v$E
+annotation_col <- data.frame(CellType = meta$CellType, row.names = meta$SampleID)
+core_pluripotency_genes <- c(
+  "POU5F1",    # OCT4
+  "SOX2",
+  "NANOG",
+  "KLF4",
+  "MYC",
+  "LIN28A",
+  "ESRRB",
+  "DPPA4",
+  "DNMT3B",
+  "GDF3",
+  "TDGF1",
+  "ZFP42",     # REX1
+  "UTF1",
+  "SALL4",
+  "PRDM14",
+  "DPPA2",
+  "DPPA3",
+  "TRIM71",
+  "FGF4",
+  "TERT",
+  "FOXD3",
+  "NR0B1"      # DAX1
+)
+
+# Check which are in your data
+core_genes_in_data <- core_pluripotency_genes[core_pluripotency_genes %in% rownames(expr_matrix)]
+
+cat("\n\nCore pluripotency genes found in data:\n")
+print(core_genes_in_data)
+
+# Extract expression
+expr_core_pluripotency <- expr_matrix[rownames(expr_matrix) %in% core_genes_in_data, ]
+
+# Create heatmap for core markers
+pheatmap(expr_core_pluripotency,
+         scale = "row",
+         annotation_col = annotation_col,
+         cluster_cols = FALSE,
+         cluster_rows = TRUE,
+         gaps_col = c(2, 4),
+         main = "Core Pluripotency Markers",
+         fontsize_row = 10,
+         fontsize_col = 11,
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         border_color = "grey60",
+         show_rownames = TRUE,
+         filename = "heatmap_core_pluripotency_markers.png",
+         width = 8,
+         height = 10)
+
