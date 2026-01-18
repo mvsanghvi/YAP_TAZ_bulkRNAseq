@@ -286,10 +286,6 @@ for (i in seq_len(top_n)) {
 }
 #### CREATE HEATMAP FOR PLURIPOTENCY GENES ####
 
-library(pheatmap)
-library(msigdbr)
-library(dplyr)
-
 # Setup
 expr_matrix <- dge_v$E
 annotation_col <- data.frame(CellType = meta$CellType, row.names = meta$SampleID)
@@ -366,3 +362,28 @@ pheatmap(expr_averaged,
          filename = "heatmap_pluripotency_averaged.png",
          width = 6,
          height = 10)
+
+
+# Search for PluriNet-related gene sets
+plurinet_sets <- msigdbr(species = "Homo sapiens") %>%
+  filter(grepl("BENPORATH|WONG|BOYER|MUELLER|EMBRYONIC|PLURIPOTENCY", 
+               gs_name, ignore.case = TRUE))
+
+# View available gene sets
+cat("PluriNet-related gene sets from MSigDB:\n")
+print(unique(plurinet_sets$gs_name))
+
+# Common pluripotency gene sets include:
+# - BENPORATH_ES_* (ES cell signatures)
+# - WONG_EMBRYONIC_STEM_CELL_CORE
+# - BOYER_HUMAN_PLURIPOTENT_STEM_CELL_*
+# - MUELLER_PLURINET
+
+# Get specific PluriNet genes
+plurinet_core <- plurinet_sets %>%
+  filter(grepl("MUELLER_PLURINET|BENPORATH_ES_WITH_H3K27ME3|WONG_EMBRYONIC_STEM_CELL_CORE", 
+               gs_name, ignore.case = TRUE))
+
+plurinet_genes <- unique(plurinet_core$gene_symbol)
+
+cat("\nPluriNet genes found:", length(plurinet_genes), "\n")
